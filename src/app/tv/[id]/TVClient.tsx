@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Plus, Check, ThumbsUp, Star, Loader2, ChevronDown } from "lucide-react";
+import { Play, Plus, Check, ThumbsUp, Star, ChevronDown } from "lucide-react";
 import Carousel from "@/components/Carousel";
+import MovieCardSkeleton from "@/components/MovieCardSkeleton";
 import {
   getCachedCore,
   getCachedTmdb,
@@ -23,37 +24,57 @@ interface TVClientProps {
 
 export default function TVClient({ id }: TVClientProps) {
   const [activeId, setActiveId] = useState(id);
+  const [retryToken, setRetryToken] = useState(0);
+  const [fetchError, setFetchError] = useState(false);
 
   // Sync prop changes
   useEffect(() => {
     setActiveId(id);
   }, [id]);
 
-  // Read any warmed cache synchronously so prefetched/cached pages skip the skeleton
-  const cachedCore = getCachedCore(activeId);
-  const cachedTmdb = getCachedTmdb(activeId);
-  const cachedRecs = getCachedRecs(activeId);
+  // Keep activeId in sync when the user navigates back/forward after a
+  // manual pushState-based dub switch
+  useEffect(() => {
+    const handlePopState = () => {
+      const match = window.location.pathname.match(/^\/tv\/([^/?#]+)/);
+      if (match && match[1] && decodeURIComponent(match[1]) !== activeId) {
+        setActiveId(decodeURIComponent(match[1]));
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [activeId]);
 
-  const [movie, setMovie] = useState<any>(cachedCore?.movie ?? null);
-  const [cast, setCast] = useState<any[]>(cachedCore?.cast ?? []);
-  const [dubs, setDubs] = useState<any[]>(cachedCore?.dubs ?? []);
-  const [seasonsData, setSeasonsData] = useState<any>(cachedCore?.seasons ?? null);
-  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(cachedTmdb?.backdropUrl ?? null);
-  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(cachedTmdb?.meta ?? null);
+  const [movie, setMovie] = useState<any>(null);
+  const [cast, setCast] = useState<any[]>([]);
+  const [dubs, setDubs] = useState<any[]>([]);
+  const [seasonsData, setSeasonsData] = useState<any>(null);
+  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
+  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(null);
+  const [logoReady, setLogoReady] = useState(false);
   
-  const [recommendations, setRecommendations] = useState<any[]>(cachedRecs ?? []);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
   
-  const [selectedSeason, setSelectedSeason] = useState<number>(
-    cachedCore?.seasons?.seasons?.[0]?.season ?? 1
-  );
+  const [selectedSeason, setSelectedSeason] = useState<number>(1);
   const [episodes, setEpisodes] = useState<any[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState<boolean>(false);
   
-  const [loading, setLoading] = useState(!cachedCore);
-  const [recsLoading, setRecsLoading] = useState(!cachedRecs);
+  const [loading, setLoading] = useState(true);
+  const [recsLoading, setRecsLoading] = useState(true);
   const [inList, setInList] = useState(false);
   const [continueRecord, setContinueRecord] = useState<{ season: number; episode: number; progress?: number; duration?: number; } | null>(null);
   const [episodesProgress, setEpisodesProgress] = useState<Record<string, { progress: number; duration: number }>>({});
+
+  const MIN_SKELETON_MS = 350;
+  const skeletonStartRef = useRef(0);
+
+  const endSkeleton = (apply: () => void) => {
+    const elapsed = Date.now() - skeletonStartRef.current;
+    const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
+    window.setTimeout(() => {
+      apply();
+    }, wait);
+  };
 
   // Reflect the saved state once we know the show
   useEffect(() => {
@@ -182,6 +203,10 @@ export default function TVClient({ id }: TVClientProps) {
     const tmdb = getCachedTmdb(activeId);
     const recs = getCachedRecs(activeId);
 
+    if (!core) {
+      skeletonStartRef.current = Date.now();
+    }
+
     if (core) {
       setMovie(core.movie);
       setCast(core.cast);
@@ -190,12 +215,13 @@ export default function TVClient({ id }: TVClientProps) {
       if (core.seasons?.seasons?.[0]?.season) {
         setSelectedSeason(core.seasons.seasons[0].season);
       }
-      setLoading(false);
-    } else {
-      setLoading(false); // don't show full page skeleton during client-side dub swap
+      endSkeleton(() => {
+        if (active) setLoading(false);
+      });
     }
     if (tmdb) {
       setTmdbBackdropUrl(tmdb.backdropUrl ?? null);
+      if (tmdb.meta?.logo_url !== tmdbShowMeta?.logo_url) setLogoReady(false);
       setTmdbShowMeta(tmdb.meta ?? null);
     }
     if (recs) {
@@ -216,7 +242,10 @@ export default function TVClient({ id }: TVClientProps) {
         if (data.seasons?.seasons?.[0]?.season) {
           setSelectedSeason(data.seasons.seasons[0].season);
         }
-        setLoading(false);
+        setFetchError(false);
+        endSkeleton(() => {
+          if (active) setLoading(false);
+        });
 
         // NON-BLOCKING: TMDB backdrop/logo/meta swaps in (and feeds episode enrichment) when ready.
         if (data.movie?.title) {
@@ -224,6 +253,7 @@ export default function TVClient({ id }: TVClientProps) {
             .then((enr) => {
               if (!active) return;
               if (enr.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
+              if (enr.meta?.logo_url) setLogoReady(false);
               setTmdbShowMeta(enr.meta);
             })
             .catch(() => {});
@@ -231,7 +261,14 @@ export default function TVClient({ id }: TVClientProps) {
       })
       .catch((err) => {
         console.error("Failed to load details", err);
-        if (active) setLoading(false);
+        if (active) {
+          endSkeleton(() => {
+            if (active) {
+              setFetchError(true);
+              setLoading(false);
+            }
+          });
+        }
       });
 
     // NON-CRITICAL: recommendations
@@ -249,31 +286,39 @@ export default function TVClient({ id }: TVClientProps) {
     return () => {
       active = false;
     };
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, retryToken]);
 
   // 3. Load rich season episodes metadata from TMDB when selectedSeason or tmdbShowMeta changes
   useEffect(() => {
     if (!movie) return;
 
+    let active = true;
     const loadEpisodes = async () => {
       setEpisodesLoading(true);
       try {
         if (tmdbShowMeta?.id) {
           const { getSeasonEpisodes } = await import("@/services/tmdb");
           const eps = await getSeasonEpisodes(tmdbShowMeta.id, selectedSeason);
+          if (!active) return;
           setEpisodes(eps);
         } else {
+          if (!active) return;
           setEpisodes([]);
         }
       } catch (err) {
         console.error("Failed to load TMDB season episodes", err);
+        if (!active) return;
         setEpisodes([]);
       } finally {
-        setEpisodesLoading(false);
+        if (active) setEpisodesLoading(false);
       }
     };
 
     loadEpisodes();
+    return () => {
+      active = false;
+    };
   }, [selectedSeason, tmdbShowMeta, movie]);
 
   // 4. Enrich local episodes with TMDB metadata
@@ -304,7 +349,7 @@ export default function TVClient({ id }: TVClientProps) {
       <div className={styles.main}>
         {/* Backdrop Skeleton */}
         <div className={styles.backdropContainer}>
-          <div className="skeleton" style={{ width: "100%", height: "100%", opacity: 0.15 }} />
+          <div className="skeleton" style={{ width: "100%", height: "100%" }} />
           <div className={styles.backdropGradient}></div>
         </div>
 
@@ -318,13 +363,13 @@ export default function TVClient({ id }: TVClientProps) {
             {/* Info Column Skeleton */}
             <div className={styles.infoColumn}>
               {/* Title Skeleton */}
-              <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem" }} />
+              <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem", borderRadius: "10px" }} />
               
               {/* Meta Row Skeleton */}
               <div className={styles.metaRow} style={{ gap: "1rem" }}>
-                <div className="skeleton" style={{ height: "1.2rem", width: "80px" }} />
-                <div className="skeleton" style={{ height: "1.2rem", width: "60px" }} />
-                <div className="skeleton" style={{ height: "1.2rem", width: "50px" }} />
+                <div className="skeleton" style={{ height: "1.3rem", width: "80px", borderRadius: "6px" }} />
+                <div className="skeleton" style={{ height: "1.3rem", width: "60px", borderRadius: "6px" }} />
+                <div className="skeleton" style={{ height: "1.3rem", width: "50px", borderRadius: "6px" }} />
               </div>
               
               {/* Genres Skeleton */}
@@ -336,9 +381,9 @@ export default function TVClient({ id }: TVClientProps) {
               
               {/* Description Skeleton */}
               <div style={{ marginBottom: "2.5rem" }}>
-                <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem" }} />
+                <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem", borderRadius: "6px" }} />
+                <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem", borderRadius: "6px" }} />
+                <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem", borderRadius: "6px" }} />
               </div>
               
               {/* Action Buttons Skeleton */}
@@ -350,14 +395,14 @@ export default function TVClient({ id }: TVClientProps) {
               
               {/* Cast Skeleton */}
               <div className={styles.castSection}>
-                <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem" }} />
+                <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem", borderRadius: "6px" }} />
                 <div className={styles.castList} style={{ gap: "1.5rem" }}>
                   {[1, 2, 3, 4].map((i) => (
                     <div key={i} className={styles.castMember} style={{ background: "rgba(255, 255, 255, 0.02)", border: "none" }}>
                       <div className="skeleton" style={{ width: "60px", height: "60px", borderRadius: "50%", flexShrink: 0 }} />
                       <div className={styles.castInfo} style={{ gap: "0.5rem" }}>
-                        <div className="skeleton" style={{ height: "1rem", width: "80px" }} />
-                        <div className="skeleton" style={{ height: "0.85rem", width: "60px" }} />
+                        <div className="skeleton" style={{ height: "1rem", width: "80px", borderRadius: "4px" }} />
+                        <div className="skeleton" style={{ height: "0.85rem", width: "60px", borderRadius: "4px" }} />
                       </div>
                     </div>
                   ))}
@@ -374,7 +419,21 @@ export default function TVClient({ id }: TVClientProps) {
     return (
       <div className={styles.main}>
         <div className={styles.errorContainer}>
-          <h1>TV Show not found</h1>
+          <h1>{fetchError ? "Something went wrong" : "TV Show not found"}</h1>
+          {fetchError && (
+            <button
+              className={styles.playButton}
+              style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}
+              onClick={() => {
+                setFetchError(false);
+                skeletonStartRef.current = Date.now();
+                setLoading(true);
+                setRetryToken((t) => t + 1);
+              }}
+            >
+              Try Again
+            </button>
+          )}
           <Link href="/" className={styles.playButton} style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}>
             Back to Home
           </Link>
@@ -410,17 +469,19 @@ export default function TVClient({ id }: TVClientProps) {
           </div>
           
           <div className={styles.infoColumn}>
-            {tmdbShowMeta?.logo_url ? (
-              <div className={styles.logoContainer}>
+            {!tmdbShowMeta?.logo_url ? (
+              <h1 className={styles.title}>{movie.title}</h1>
+            ) : (
+              <div className={`${styles.logoContainer} ${logoReady ? styles.logoVisible : ""}`}>
+                {!logoReady && <div className={`${styles.logoSkeleton} skeleton`} />}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.logo(tmdbShowMeta.logo_url)}
                   alt={movie.title}
                   className={styles.titleLogo}
+                  onLoad={() => setLogoReady(true)}
                 />
               </div>
-            ) : (
-              <h1 className={styles.title}>{movie.title}</h1>
             )}
             
             <div className={styles.metaRow}>
@@ -437,8 +498,8 @@ export default function TVClient({ id }: TVClientProps) {
             
             {movie.genre && (
               <div className={styles.genres}>
-                {movie.genre.split(",").map((g: string) => (
-                  <span key={g} className={styles.genreTag}>{g.trim()}</span>
+                {movie.genre.split(",").map((g: string, gi: number) => (
+                  <span key={`${g}-${gi}`} className={styles.genreTag}>{g.trim()}</span>
                 ))}
               </div>
             )}
@@ -449,7 +510,7 @@ export default function TVClient({ id }: TVClientProps) {
               <div className={styles.dubsContainer}>
                 <span className={styles.dubsLabel}>Audio / Dubbing:</span>
                 <div className={styles.dubsList}>
-                  {dubs.map((d: any) => {
+                  {dubs.map((d: any, di: number) => {
                     const isCurrent = 
                       String(d.subject_id) === String(activeId) || 
                       String(d.detail_path) === String(activeId) ||
@@ -457,7 +518,7 @@ export default function TVClient({ id }: TVClientProps) {
                       String(d.detail_path) === String(movie?.detailPath);
                     return (
                       <button
-                        key={d.subject_id}
+                        key={d.subject_id ?? d.language ?? `dub-${di}`}
                         onClick={() => {
                           window.history.pushState(null, "", `/tv/${d.subject_id}`);
                           setActiveId(d.subject_id);
@@ -510,8 +571,8 @@ export default function TVClient({ id }: TVClientProps) {
               <div className={styles.castSection}>
                 <h3>Cast</h3>
                 <div className={styles.castList}>
-                  {cast.slice(0, 5).map((star: any) => (
-                    <div key={star.staffId} className={styles.castMember}>
+                  {cast.slice(0, 5).map((star: any, cIdx: number) => (
+                    <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castMember}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img 
                         src={star.avatarUrl ? img.avatar(star.avatarUrl) : "/placeholder.png"} 
@@ -553,9 +614,18 @@ export default function TVClient({ id }: TVClientProps) {
 
                 <div className={styles.episodesList}>
                   {episodesLoading ? (
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "150px" }}>
-                      <Loader2 size={32} className="animate-spin text-red-600" style={{ color: "var(--accent-color)" }} />
-                    </div>
+                    <>
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} style={{ display: "flex", gap: "0.9rem", marginBottom: "0.9rem" }}>
+                          <div className="skeleton" style={{ width: "170px", aspectRatio: "16/9", borderRadius: "8px", flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div className="skeleton" style={{ height: "1rem", width: "60%", marginBottom: "0.6rem", borderRadius: "4px" }} />
+                            <div className="skeleton" style={{ height: "0.85rem", width: "100%", marginBottom: "0.4rem", borderRadius: "4px" }} />
+                            <div className="skeleton" style={{ height: "0.85rem", width: "85%", borderRadius: "4px" }} />
+                          </div>
+                        </div>
+                      ))}
+                    </>
                   ) : enrichedEpisodes.length > 0 ? (
                     enrichedEpisodes.map((ep) => {
                       const fallbackStill = tmdbBackdropUrl || movie.cover?.url || "/placeholder.png";
@@ -566,7 +636,6 @@ export default function TVClient({ id }: TVClientProps) {
                           href={`/watch/${activeId}?season=${selectedSeason}&episode=${ep.episode_number}`}
                           className={styles.episodeCard}
                           onMouseEnter={() => prefetchDownload(activeId, selectedSeason, ep.episode_number)}
-                          onTouchStart={() => prefetchDownload(activeId, selectedSeason, ep.episode_number)}
                         >
                           <div className={styles.episodeStillContainer}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -616,9 +685,11 @@ export default function TVClient({ id }: TVClientProps) {
         {recsLoading ? (
           <div className={styles.recommendations}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: "600", borderLeft: "3px solid var(--accent-color)", paddingLeft: "0.5rem", marginBottom: "1.5rem", color: "var(--text-primary)" }}>More Like This</h3>
-            <div style={{ display: "flex", gap: "1rem", overflow: "hidden" }}>
+            <div style={{ display: "flex", gap: "1.25rem", overflow: "hidden" }}>
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="skeleton" style={{ width: "160px", aspectRatio: "2/3", borderRadius: "8px", flexShrink: 0, opacity: 0.15 }} />
+                <div key={i} style={{ width: "180px", flexShrink: 0 }}>
+                  <MovieCardSkeleton />
+                </div>
               ))}
             </div>
           </div>

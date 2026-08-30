@@ -5,7 +5,7 @@ export default function Loading() {
     <div className={styles.main}>
       {/* Backdrop Skeleton */}
       <div className={styles.backdropContainer}>
-        <div className="skeleton" style={{ width: "100%", height: "100%", opacity: 0.15 }} />
+        <div className="skeleton" style={{ width: "100%", height: "100%" }} />
         <div className={styles.backdropGradient}></div>
       </div>
 
@@ -19,13 +19,13 @@ export default function Loading() {
           {/* Info Column Skeleton */}
           <div className={styles.infoColumn}>
             {/* Title Skeleton */}
-            <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem" }} />
+            <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem", borderRadius: "10px" }} />
             
             {/* Meta Row Skeleton */}
             <div className={styles.metaRow} style={{ gap: "1rem" }}>
-              <div className="skeleton" style={{ height: "1.2rem", width: "80px" }} />
-              <div className="skeleton" style={{ height: "1.2rem", width: "60px" }} />
-              <div className="skeleton" style={{ height: "1.2rem", width: "50px" }} />
+              <div className="skeleton" style={{ height: "1.3rem", width: "80px", borderRadius: "6px" }} />
+              <div className="skeleton" style={{ height: "1.3rem", width: "60px", borderRadius: "6px" }} />
+              <div className="skeleton" style={{ height: "1.3rem", width: "50px", borderRadius: "6px" }} />
             </div>
             
             {/* Genres Skeleton */}
@@ -37,9 +37,9 @@ export default function Loading() {
             
             {/* Description Skeleton */}
             <div style={{ marginBottom: "2.5rem" }}>
-              <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem" }} />
-              <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem" }} />
-              <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem" }} />
+              <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem", borderRadius: "6px" }} />
+              <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem", borderRadius: "6px" }} />
+              <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem", borderRadius: "6px" }} />
             </div>
             
             {/* Action Buttons Skeleton */}
@@ -51,14 +51,14 @@ export default function Loading() {
             
             {/* Cast Skeleton */}
             <div className={styles.castSection}>
-              <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem" }} />
+              <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem", borderRadius: "6px" }} />
               <div className={styles.castList} style={{ gap: "1.5rem" }}>
                 {[1, 2, 3, 4].map((i) => (
                   <div key={i} className={styles.castMember} style={{ background: "rgba(255, 255, 255, 0.02)", border: "none" }}>
                     <div className="skeleton" style={{ width: "60px", height: "60px", borderRadius: "50%", flexShrink: 0 }} />
                     <div className={styles.castInfo} style={{ gap: "0.5rem" }}>
-                      <div className="skeleton" style={{ height: "1rem", width: "80px" }} />
-                      <div className="skeleton" style={{ height: "0.85rem", width: "60px" }} />
+                      <div className="skeleton" style={{ height: "1rem", width: "80px", borderRadius: "4px" }} />
+                      <div className="skeleton" style={{ height: "0.85rem", width: "60px", borderRadius: "4px" }} />
                     </div>
                   </div>
                 ))}

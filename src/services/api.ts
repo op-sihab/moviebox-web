@@ -1,6 +1,4 @@
-const BASE_URL = process.env.NODE_ENV === "development"
-  ? "http://127.0.0.1:7860"
-  : "https://movie-api.opsihab.tech";
+const BASE_URL = process.env.API_URL || "https://movie-api.opsihab.tech";
 
 export async function getHomepage() {
   const res = await fetch(`${BASE_URL}/homepage`, { next: { revalidate: 300 } });
@@ -8,8 +6,36 @@ export async function getHomepage() {
   return res.json();
 }
 
-export async function searchContent(query: string, type = "all", page = 1) {
-  const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(query)}&type=${type}&page=${page}`);
+export async function searchContent(
+  query: string,
+  typeOrSignal: string | AbortSignal = "all",
+  pageOrSignal: number | AbortSignal = 1,
+  signalParam?: AbortSignal
+) {
+  let type = "all";
+  let page = 1;
+  let signal: AbortSignal | undefined = undefined;
+
+  if (typeOrSignal instanceof AbortSignal) {
+    signal = typeOrSignal;
+  } else if (typeof typeOrSignal === "string") {
+    type = typeOrSignal;
+  }
+
+  if (pageOrSignal instanceof AbortSignal) {
+    signal = pageOrSignal;
+  } else if (typeof pageOrSignal === "number") {
+    page = pageOrSignal;
+  }
+
+  if (signalParam instanceof AbortSignal) {
+    signal = signalParam;
+  }
+
+  const res = await fetch(
+    `${BASE_URL}/search?q=${encodeURIComponent(query)}&type=${type}&page=${page}`,
+    { signal }
+  );
   if (!res.ok) throw new Error("Failed to search");
   return res.json();
 }

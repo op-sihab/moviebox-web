@@ -10,14 +10,16 @@
 
 .searchBar {
   position: relative;
-  margin: 2rem 0;
+  margin: 2rem 0 0;
   display: flex;
   align-items: center;
   background: var(--bg-card);
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color);
   padding: 0.5rem 1rem;
-  transition: var(--transition);
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .searchBar:focus-within {
@@ -45,6 +47,10 @@
   color: var(--text-muted);
 }
 
+.fallbackText {
+  color: var(--text-muted);
+}
+
 .spinner {
   color: var(--accent-color);
   animation: spin 1s linear infinite;
@@ -55,11 +61,42 @@
   to { transform: rotate(360deg); }
 }
 
+/* Subtle determinate-style progress bar shown under the search bar while loading */
+.loadingBar {
+  position: relative;
+  height: 2px;
+  margin-bottom: 1.5rem;
+  border-radius: 2px;
+  background: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.loadingBar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent-color);
+  transform-origin: left;
+  animation: loadingBarSlide 1.2s ease-in-out infinite;
+}
+
+@keyframes loadingBarSlide {
+  0% {
+    transform: translateX(-100%) scaleX(0.4);
+  }
+  50% {
+    transform: translateX(30%) scaleX(0.6);
+  }
+  100% {
+    transform: translateX(110%) scaleX(0.4);
+  }
+}
+
 .resultsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
-  padding-bottom: 4rem;
+  padding-bottom: 2rem;
 }
 
 @media (min-width: 640px) {
@@ -85,10 +122,74 @@
   width: 100%;
 }
 
-.noResults, .emptyState {
+.loadMoreWrap {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 4rem;
+}
+
+.loadMoreButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--border-radius);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.loadMoreButton:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.errorState, .noResults, .emptyState {
   text-align: center;
   padding: 4rem 2rem;
   color: var(--text-secondary);
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 4rem 2rem 5rem;
+}
+
+.errorIcon {
+  color: var(--accent-color);
+}
+
+.errorState h2 {
+  font-size: 1.6rem;
+  color: var(--text-primary);
+}
+
+.errorState p {
+  max-width: 40ch;
+}
+
+.retryButton {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--border-radius);
+  background: var(--accent-color);
+  color: #fff;
+  font-weight: 600;
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.retryButton:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 15px var(--accent-glow);
 }
 
 .emptyState h2 {

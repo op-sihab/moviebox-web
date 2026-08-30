@@ -1,14 +1,26 @@
-
 import Carousel from "@/components/Carousel";
 import ContinueWatching from "@/components/ContinueWatching";
 import { getHomepage } from "@/services/api";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Info } from "lucide-react";
+import { Play, Info, AlertTriangle } from "lucide-react";
 import { img } from "@/services/image";
 
+const HERO_WIDTH = 1920;
+const HERO_HEIGHT = 1080;
+
 export default async function Home() {
-  const data = await getHomepage();
+  // Server-side try/catch: on API failure render an inline error banner
+  // (with a client-side retry link) instead of crashing the whole tree.
+  let data: any = null;
+  let failed = false;
+  try {
+    data = await getHomepage();
+  } catch (err) {
+    console.error("Homepage fetch failed:", err);
+    failed = true;
+  }
+
   const operatingList = data?.data?.operatingList || [];
 
   // Extract banner
@@ -24,6 +36,23 @@ export default async function Home() {
       op.subjects.length > 0
   );
 
+  if (failed) {
+    return (
+      <main className={styles.main}>
+        <section className={styles.errorSection}>
+          <AlertTriangle className={styles.errorIcon} size={40} />
+          <h1 className={styles.errorTitle}>Something went wrong</h1>
+          <p className={styles.errorText}>
+            We couldn&apos;t load the homepage. Please try again.
+          </p>
+          <Link href="/" className={styles.retryLink}>
+            Try Again
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className={styles.main}>
 
@@ -35,6 +64,9 @@ export default async function Home() {
               src={img.hero(heroMovie.image?.url || heroMovie.subject?.cover?.url)}
               alt={heroMovie.title}
               className={styles.heroImage}
+              fetchPriority="high"
+              width={HERO_WIDTH}
+              height={HERO_HEIGHT}
             />
             <div className={styles.heroGradient}></div>
           </div>
@@ -51,7 +83,7 @@ export default async function Home() {
                 href={`/movie/${heroMovie.detailPath}`}
                 className={styles.playButton}
               >
-                <Play fill="black" size={20} />
+                <Play fill="white" size={20} />
                 <span>Play Now</span>
               </Link>
               <Link
@@ -68,7 +100,7 @@ export default async function Home() {
 
       <div className={`container ${styles.contentWrapper}`}>
         <ContinueWatching />
-        {carouselBlocks.map((block: any, idx: number) => {
+        {carouselBlocks.map((block: any, idx: number, arr: any[]) => {
           const mappedMovies = block.subjects.map((s: any) => ({
             id: s.subjectId,
             title: s.title,
@@ -79,8 +111,16 @@ export default async function Home() {
             media_type: s.subjectType === 2 ? "tv" : "movie",
           }));
 
+          // Stable key from the section title (suffix only on duplicates)
+          const duplicate = arr.slice(0, idx).some((s: any) => s.title === block.title);
+
           return (
-            <Carousel key={idx} title={block.title} movies={mappedMovies} eager={idx === 0} />
+            <Carousel
+              key={duplicate ? `${block.title}-${idx}` : block.title}
+              title={block.title}
+              movies={mappedMovies}
+              eager={idx === 0}
+            />
           );
         })}
       </div>

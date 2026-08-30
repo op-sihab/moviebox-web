@@ -72,8 +72,9 @@ export default function CustomVideoPlayer({
   // so quick loads just play without ever flashing a loader.
   const [showSpinner, setShowSpinner] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
+  const [videoError, setVideoError] = useState(false);
 
-  const spinnerTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const spinnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const SPINNER_DELAY_MS = 4500;
 
   // Autoplay Countdown States
@@ -81,18 +82,31 @@ export default function CustomVideoPlayer({
   const [showCountdownToast, setShowCountdownToast] = useState(false);
   const [isCountdownCancelled, setIsCountdownCancelled] = useState(false);
 
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lastFilesRef = useRef<any[]>([]);
   const previousTimeRef = useRef(0);
   const wasPlayingRef = useRef(false);
   const activeTimeRef = useRef(0);
   const isPlayingRef = useRef(false);
+  const isMutedRef = useRef(false);
+  const isFullscreenRef = useRef(false);
+  const isScrubbingRef = useRef(false);
+  const restoredKeyRef = useRef<string | null>(null);
 
   // Sync isPlaying state to a ref to avoid triggering source switches on play/pause
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
+
+  useEffect(() => {
+    isFullscreenRef.current = isFullscreen;
+  }, [isFullscreen]);
 
   // Sync playback rate on load
   useEffect(() => {
@@ -174,6 +188,8 @@ export default function CustomVideoPlayer({
 
   // 1. Restore playback progress from localStorage on mount/id change
   useEffect(() => {
+    const restoredKey = `${title ?? ""}:${mediaType}:${season ?? 0}:${episode ?? 0}`;
+    restoredKeyRef.current = restoredKey;
     try {
       const getBaseTitle = (t: string) => {
         if (!t) return "";
@@ -332,13 +348,18 @@ export default function CustomVideoPlayer({
         if (files === lastFilesRef.current) {
           previousTimeRef.current = activeTimeRef.current;
           wasPlayingRef.current = isPlayingRef.current;
-        } else {
-          // New episode or movie: reset progress and auto-play
+      } else {
+        // New episode or movie: reset progress and auto-play.
+        // Skip the reset when a restore just ran for this same episode,
+        // otherwise the restored resume position would be wiped.
+        if (restoredKeyRef.current !== `${title ?? ""}:${mediaType}:${season ?? 0}:${episode ?? 0}`) {
           previousTimeRef.current = 0;
-          activeTimeRef.current = 0;
-          setCurrentTime(0);
-          wasPlayingRef.current = true;
+          restoredKeyRef.current = null;
         }
+        activeTimeRef.current = 0;
+        setCurrentTime(0);
+        wasPlayingRef.current = true;
+      }
       } else {
         // Initial load: Preserve previousTimeRef.current (from localStorage)
         activeTimeRef.current = 0;
@@ -404,8 +425,12 @@ export default function CustomVideoPlayer({
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current);
+        clickTimerRef.current = null;
+      }
     };
-  }, [isPlaying, showSettings]);
+  }, []);
 
 
 
@@ -433,16 +458,20 @@ export default function CustomVideoPlayer({
     if (isLoading && previousTimeRef.current > 0 && videoRef.current.currentTime === 0) {
       return;
     }
-    
+
     const curTime = videoRef.current.currentTime;
-    setCurrentTime(curTime);
+    if (!isScrubbingRef.current) {
+      setCurrentTime(curTime);
+    }
     activeTimeRef.current = curTime;
 
     // Trigger Next Episode Autoplay Toast when remaining time <= 20 seconds
     if (onNextEpisode && duration > 0) {
       const remaining = duration - curTime;
       if (remaining <= 20 && remaining > 0) {
-        setShowCountdownToast(true);
+        if (!showCountdownToast) {
+          setShowCountdownToast(true);
+        }
         setCountdown(Math.ceil(remaining));
       } else {
         setShowCountdownToast(false);
@@ -471,9 +500,36 @@ export default function CustomVideoPlayer({
 
     // Restore or trigger play state
     if (wasPlayingRef.current) {
-      videoRef.current.play().catch(() => setIsPlaying(false));
-      wasPlayingRef.current = false; // reset
+      videoRef.current
+        .play()
+        .then(() => {
+          wasPlayingRef.current = false;
+        })
+        .catch((err: DOMException) => {
+          if (err?.name === "NotAllowedError") {
+            videoRef.current!.muted = true;
+            setIsMuted(true);
+            videoRef.current!.play().catch(() => setIsPlaying(false));
+          } else {
+            setIsPlaying(false);
+          }
+          wasPlayingRef.current = false;
+        });
     }
+  };
+
+  const handleVideoError = () => {
+    setIsLoading(false);
+    setShowSpinner(false);
+    setVideoError(true);
+  };
+
+  const handleVideoRetry = () => {
+    if (!videoRef.current || !videoUrl) return;
+    setVideoError(false);
+    setIsLoading(true);
+    videoRef.current.load();
+    videoRef.current.play().catch(() => setIsPlaying(false));
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -488,7 +544,7 @@ export default function CustomVideoPlayer({
 
   const toggleMute = () => {
     if (!videoRef.current) return;
-    const nextMute = !isMuted;
+    const nextMute = !isMutedRef.current;
     setIsMuted(nextMute);
     videoRef.current.muted = nextMute;
     if (!nextMute && volume === 0) {
@@ -504,16 +560,34 @@ export default function CustomVideoPlayer({
     videoRef.current.currentTime = newTime;
   };
 
+  const handleScrubStart = () => {
+    isScrubbingRef.current = true;
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+  };
+
+  const handleScrubEnd = () => {
+    isScrubbingRef.current = false;
+    handleMouseMove();
+  };
+
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
 
-    if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen();
+    if (!isFullscreenRef.current) {
+      const el = containerRef.current as HTMLDivElement & {
+        webkitRequestFullscreen?: () => Promise<void> | void;
+      };
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
       }
     } else {
+      const doc = document as Document & { webkitExitFullscreen?: () => void };
       if (document.exitFullscreen) {
-        document.exitFullscreen();
+        document.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
       }
     }
   };
@@ -538,7 +612,25 @@ export default function CustomVideoPlayer({
   // Listen to keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") {
+      const target = e.target as HTMLElement | null;
+      const active = document.activeElement as HTMLElement | null;
+      const tag = active?.tagName;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        active?.isContentEditable ||
+        (target && target.closest("a, button, input, textarea, select, [contenteditable]") && e.code !== "Escape")
+      ) {
+        return;
+      }
+
+      if (e.code === "Escape") {
+        if (showEpisodesDrawer) {
+          setShowEpisodesDrawer(false);
+        } else if (showSettings) {
+          setShowSettings(false);
+        }
         return;
       }
 
@@ -566,7 +658,7 @@ export default function CustomVideoPlayer({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, onNextEpisode]);
+  }, [isPlaying, onNextEpisode, showEpisodesDrawer, showSettings]);
 
   const formatTime = (time: number) => {
     if (isNaN(time)) return "0:00";
@@ -596,8 +688,20 @@ export default function CustomVideoPlayer({
           ref={videoRef}
           src={videoUrl}
           className={styles.video}
-          onClick={togglePlay}
-          onDoubleClick={toggleFullscreen}
+          onClick={() => {
+            if (clickTimerRef.current) return;
+            clickTimerRef.current = setTimeout(() => {
+              clickTimerRef.current = null;
+              togglePlay();
+            }, 220);
+          }}
+          onDoubleClick={() => {
+            if (clickTimerRef.current) {
+              clearTimeout(clickTimerRef.current);
+              clickTimerRef.current = null;
+            }
+            toggleFullscreen();
+          }}
           onPlay={() => setIsPlaying(true)}
           onPause={() => {
             setIsPlaying(false);
@@ -613,12 +717,24 @@ export default function CustomVideoPlayer({
           }}
           onPlaying={() => setIsLoading(false)}
           onEnded={handleVideoEnded}
+          onError={handleVideoError}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           {...({ referrerPolicy: "no-referrer" } as any)}
           autoPlay
+          playsInline
         />
       ) : (
         <div className={styles.noSource}>Loading streaming source...</div>
+      )}
+
+      {/* Stream error overlay with retry */}
+      {videoError && (
+        <div className={styles.errorOverlay}>
+          <span className={styles.errorText}>Stream failed to load</span>
+          <button onClick={handleVideoRetry} className={styles.errorRetryBtn}>
+            Try Again
+          </button>
+        </div>
       )}
 
       {/* Loading Overlay — only after the grace period (deferred spinner) */}
@@ -729,6 +845,11 @@ export default function CustomVideoPlayer({
               max={duration || 100}
               value={currentTime}
               onChange={handleTimelineChange}
+              onPointerDown={handleScrubStart}
+              onPointerUp={handleScrubEnd}
+              onPointerCancel={handleScrubEnd}
+              onKeyDown={handleScrubEnd}
+              aria-label="Seek"
               className={styles.timeline}
               style={{
                 background: `linear-gradient(to right, var(--accent-color) 0%, var(--accent-color) ${
@@ -814,6 +935,7 @@ export default function CustomVideoPlayer({
                   step={0.05}
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
+                  aria-label="Volume"
                   className={styles.volumeSlider}
                 />
               </div>
@@ -983,12 +1105,19 @@ export default function CustomVideoPlayer({
 
       {/* Episodes Drawer Overlay (sliding sidebar) */}
       {showEpisodesDrawer && mediaType === "tv" && episodes && episodes.length > 0 && (
-        <div className={styles.episodesDrawer} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={styles.episodesDrawer}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Episodes List"
+        >
           <div className={styles.drawerHeader}>
             <h3>Episodes List</h3>
-            <button 
-              onClick={() => setShowEpisodesDrawer(false)} 
+            <button
+              onClick={() => setShowEpisodesDrawer(false)}
               className={styles.drawerCloseBtn}
+              aria-label="Close episodes list"
             >
               ×
             </button>

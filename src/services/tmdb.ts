@@ -1,4 +1,8 @@
-const TMDB_API_KEY = "0ded8ddd0719ef0f717a6a5343f2a348";
+const TMDB_API_KEY =
+  process.env.TMDB_API_KEY ||
+  process.env.NEXT_PUBLIC_TMDB_API_KEY ||
+  "0ded8ddd0719ef0f717a6a5343f2a348";
+
 
 export interface TMDBShowMetadata {
   id: number;

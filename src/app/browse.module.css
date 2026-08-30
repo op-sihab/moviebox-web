@@ -1,6 +1,6 @@
 .main {
   min-height: 100vh;
-  padding: 110px 0 4rem;
+  padding: 100px 0 4rem;
   background-color: var(--bg-primary);
 }
 
@@ -70,6 +70,32 @@
   color: var(--text-primary);
 }
 
+/* Inline banner shown when the API fetch fails (sections couldn't load) */
+.errorBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  padding: 3rem 2rem;
+  text-align: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-color);
+  border-radius: var(--border-radius);
+}
+
+.errorBanner h2 {
+  font-size: 1.4rem;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.errorBanner p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
 .browseLink {
   margin-top: 0.5rem;
   background: var(--accent-color);
@@ -77,7 +103,8 @@
   padding: 0.75rem 1.75rem;
   border-radius: var(--border-radius);
   font-weight: 600;
-  transition: var(--transition);
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .browseLink:hover {

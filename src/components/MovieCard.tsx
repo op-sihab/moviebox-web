@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { memo, useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Play, Loader2 } from "lucide-react";
+import { Play } from "lucide-react";
 import styles from "./MovieCard.module.css";
 import { prefetchDetails } from "@/services/contentCache";
 import { img } from "@/services/image";
 
-interface Movie {
+export interface Movie {
   _id?: string;
   id?: string | number;
   title?: string;
@@ -32,16 +31,7 @@ interface MovieCardProps {
   priority?: boolean;
 }
 
-export default function MovieCard({ movie, priority = false }: MovieCardProps) {
-  const [isNavigating, setIsNavigating] = useState(false);
-  const pathname = usePathname();
-
-  // Reset navigating state if the path changes (navigation completed) or user goes back
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsNavigating(false);
-  }, [pathname]);
-
+function MovieCard({ movie, priority = false }: MovieCardProps) {
   const title = movie.title || movie.name;
   const imagePath = movie.poster_path || movie.backdrop_path;
   const rawImageUrl = imagePath
@@ -58,40 +48,38 @@ export default function MovieCard({ movie, priority = false }: MovieCardProps) {
   // Use a fallback ID format if _id is not present
   const id = movie._id || movie.id;
   const type = movie.media_type || "movie";
-  
+
   // If it's a continue-watching item (has progress), send the user straight to the player!
   const isContinueWatching = typeof movie.progress === "number" && typeof movie.duration === "number";
-  
-  let linkHref = `/${type === "tv" ? "tv" : "movie"}/${id}`;
-  if (isContinueWatching) {
-    if (type === "tv" && movie.season && movie.episode) {
-      linkHref = `/watch/${id}?season=${movie.season}&episode=${movie.episode}`;
-    } else {
-      linkHref = `/watch/${id}`;
+
+  let linkHref = "";
+  if (id) {
+    linkHref = `/${type === "tv" ? "tv" : "movie"}/${id}`;
+    if (isContinueWatching) {
+      if (type === "tv" && movie.season && movie.episode) {
+        linkHref = `/watch/${id}?season=${movie.season}&episode=${movie.episode}`;
+      } else {
+        linkHref = `/watch/${id}`;
+      }
     }
   }
 
-  // Warm the detail-page cache on hover/touch so navigation skips the skeleton
-  const handlePrefetch = () => {
+  // Warm the detail-page cache on hover/focus so navigation skips the skeleton
+  const handlePrefetch = useCallback(() => {
     if (id) {
       prefetchDetails(String(id), type === "tv" ? "tv" : "movie");
     }
-  };
+  }, [id, type]);
 
-  const handleClick = () => {
-    setIsNavigating(true);
-  };
+  // Touch devices never fire mouseenter, so warm the cache on touchstart —
+  // it fires ~150-300ms before the click, giving the fetch a head start.
+  const handleTouchStart = useCallback(() => {
+    if (!id) return;
+    prefetchDetails(String(id), type === "tv" ? "tv" : "movie");
+  }, [id, type]);
 
-  return (
-    <Link
-      href={linkHref}
-      className={`${styles.cardWrapper} ${isNavigating ? styles.navigating : ""}`}
-      onMouseEnter={handlePrefetch}
-      onTouchStart={handlePrefetch}
-      onFocus={handlePrefetch}
-      onClick={handleClick}
-      prefetch={true}
-    >
+  const content = (
+    <>
       <div className={styles.card}>
         {/* Skeleton lives as the container background; the image paints on top of
             it and covers it as soon as it loads. No JS state, so it can never get
@@ -101,28 +89,27 @@ export default function MovieCard({ movie, priority = false }: MovieCardProps) {
           <img
             src={imageUrl}
             alt={title || "Movie poster"}
-            className={`${styles.image} ${isNavigating ? styles.imagePulse : ""}`}
+            className={styles.image}
             loading={priority ? "eager" : "lazy"}
             fetchPriority={priority ? "high" : "auto"}
             decoding="async"
           />
-          <div className={`${styles.overlay} ${isNavigating ? styles.overlayActive : ""}`}>
+          <div className={styles.overlay}>
             <div className={styles.playButton}>
-              {isNavigating ? (
-                <Loader2 className={styles.spinner} color="white" size={24} />
-              ) : (
-                <Play fill="white" size={24} />
-              )}
+              <Play fill="white" size={24} />
             </div>
           </div>
-          {movie.progress && movie.duration && (
-            <div className={styles.progressBarContainer}>
-              <div 
-                className={styles.progressBar} 
-                style={{ width: `${(movie.progress / movie.duration) * 100}%` }}
-              />
-            </div>
-          )}
+          {typeof movie.progress === "number" &&
+            movie.progress > 0 &&
+            typeof movie.duration === "number" &&
+            movie.duration > 0 && (
+              <div className={styles.progressBarContainer}>
+                <div
+                  className={styles.progressBar}
+                  style={{ width: `${(movie.progress / movie.duration) * 100}%` }}
+                />
+              </div>
+            )}
         </div>
       </div>
       <div className={styles.bottomInfo}>
@@ -135,11 +122,30 @@ export default function MovieCard({ movie, priority = false }: MovieCardProps) {
           )}
           {rating && (
             <span className={styles.rating}>
-              ★ {rating}
+              {"\u2605"} {rating}
             </span>
           )}
         </div>
       </div>
+    </>
+  );
+
+  // Cards without a resolvable id render as a static tile instead of a broken link
+  if (!id) {
+    return <div className={styles.cardWrapper}>{content}</div>;
+  }
+
+  return (
+    <Link
+      href={linkHref}
+      className={styles.cardWrapper}
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
+      onTouchStart={handleTouchStart}
+    >
+      {content}
     </Link>
   );
 }
+
+export default memo(MovieCard);

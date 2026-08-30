@@ -88,6 +88,23 @@
 
 .logoContainer {
   margin-bottom: 1.5rem;
+  position: relative;
+  min-height: 40px;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.logoVisible {
+  opacity: 1;
+}
+
+.logoSkeleton {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 60px;
+  border-radius: 8px;
 }
 
 .titleLogo {

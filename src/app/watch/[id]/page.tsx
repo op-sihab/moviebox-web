@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import WatchClient from "./WatchClient";
+
+export const metadata: Metadata = {
+  title: "Watch — CineAura",
+  robots: { index: false, follow: false },
+};
 
 interface PageProps {
   params: Promise<{ id: string }>;

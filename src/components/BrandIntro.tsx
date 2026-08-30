@@ -28,6 +28,8 @@ export default function BrandIntro({
 }: BrandIntroProps) {
   const [exiting, setExiting] = useState(false);
   const [minElapsed, setMinElapsed] = useState(false);
+  // Fallback for browsers/background tabs that skip `animationend` events
+  const [finished, setFinished] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setMinElapsed(true), minDuration);
@@ -45,8 +47,22 @@ export default function BrandIntro({
     }
   }, [ready, minElapsed]);
 
+  // Hard timeout fallback: if `animationend` never fires (e.g. the tab was
+  // backgrounded mid-exit), still release the overlay slightly after the
+  // exit animation could have finished.
+  useEffect(() => {
+    if (!exiting) return;
+    const t = setTimeout(() => {
+      setFinished(true);
+      onFinish();
+    }, 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exiting]);
+
   const handleAnimationEnd = (e: React.AnimationEvent) => {
-    if (exiting && e.target === e.currentTarget) {
+    if (exiting && !finished && e.target === e.currentTarget) {
+      setFinished(true);
       onFinish();
     }
   };
@@ -55,10 +71,13 @@ export default function BrandIntro({
     <div
       className={`${styles.overlay} ${exiting ? styles.exiting : ""}`}
       onAnimationEnd={handleAnimationEnd}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading CineAura"
     >
-      <div className={styles.glowPulse} />
+      <div className={styles.glowPulse} aria-hidden="true" />
 
-      <div className={styles.logoWrap}>
+      <div className={styles.logoWrap} aria-hidden={finished || undefined}>
         {/* ===== Animated brand mark ===== */}
         <svg
           className={styles.mark}
@@ -69,9 +88,9 @@ export default function BrandIntro({
         >
           <defs>
             <linearGradient id="bx-ring" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#FF2D55" />
-              <stop offset="50%" stopColor="#E50914" />
-              <stop offset="100%" stopColor="#FF9500" />
+              <stop offset="0%" stopColor="#A78BFA" />
+              <stop offset="50%" stopColor="#8B5CF6" />
+              <stop offset="100%" stopColor="#E879F9" />
             </linearGradient>
             <linearGradient id="bx-play" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="#ffffff" />

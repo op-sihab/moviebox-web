@@ -4,11 +4,24 @@
 }
 
 .carouselTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 700;
   margin-bottom: 1rem;
   color: var(--text-primary);
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  letter-spacing: -0.01em;
+}
+
+.carouselTitle::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1.15em;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #8B5CF6 0%, #D946EF 100%);
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .wrapper {
@@ -24,6 +37,7 @@
   scrollbar-width: none; /* Firefox */
   padding: 1rem 0;
   scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
   flex: 1;
   min-width: 0;
   -webkit-overflow-scrolling: touch; /* Momentum scrolling */
@@ -38,6 +52,7 @@
   flex: 0 0 160px;
   min-width: 160px;
   max-width: 160px;
+  scroll-snap-align: start;
 }
 
 @media (min-width: 640px) {
@@ -85,12 +100,26 @@
   align-items: center;
   justify-content: center;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transition: all 0.3s ease;
   backdrop-filter: blur(4px);
 }
 
-.wrapper:hover .navButton {
+.wrapper:hover .navButton,
+.navButton:focus-visible {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Touch devices never hover: keep arrows usable */
+@media (pointer: coarse) {
+  .navButton {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
 }
 
 .navButton:hover {

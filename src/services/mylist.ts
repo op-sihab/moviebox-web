@@ -40,6 +40,43 @@ function keyOf(item: MyListItem): string {
   return String(item._id ?? item.id ?? "");
 }
 
+const listeners = new Set<() => void>();
+
+let storageListenerAttached = false;
+function ensureStorageListener() {
+  if (storageListenerAttached || typeof window === "undefined") return;
+  window.addEventListener("storage", (e) => {
+    if (e.key === KEY) {
+      listeners.forEach((listener) => {
+        try {
+          listener();
+        } catch (err) {
+          console.error("Error in mylist subscriber:", err);
+        }
+      });
+    }
+  });
+  storageListenerAttached = true;
+}
+
+function notifyListeners() {
+  listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (err) {
+      console.error("Error in mylist subscriber:", err);
+    }
+  });
+}
+
+export function subscribeMyList(listener: () => void): () => void {
+  listeners.add(listener);
+  ensureStorageListener();
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function isInMyList(item: MyListItem): boolean {
   const k = keyOf(item);
   return getMyList().some((i) => keyOf(i) === k);
@@ -54,5 +91,7 @@ export function toggleMyList(item: MyListItem): boolean {
 
   const next = exists ? list.filter((i) => keyOf(i) !== k) : [item, ...list];
   save(next);
+  notifyListeners();
   return !exists;
 }
+

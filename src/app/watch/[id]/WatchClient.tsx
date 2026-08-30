@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Loader2 } from "lucide-react";
+import { Play } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import CustomVideoPlayer from "@/components/CustomVideoPlayer";
 import BrandIntro from "@/components/BrandIntro";
@@ -24,22 +24,19 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const router = useRouter();
   const pathname = usePathname();
 
-  // Seed from any warm cache so the page can render instantly (no blank screen)
-  const cachedCore = getCachedCore(id);
-
-  const [movie, setMovie] = useState<any>(cachedCore?.movie ?? null);
-  const [seasonsData, setSeasonsData] = useState<any>(cachedCore?.seasons ?? null);
-  const [dubs, setDubs] = useState<any[]>(cachedCore?.dubs ?? []);
-  const [detailsLoading, setDetailsLoading] = useState(!cachedCore);
+  // Cache is read inside the first effect (not during render) so SSR and the
+  // first client render always match, avoiding hydration mismatches.
+  const [movie, setMovie] = useState<any>(null);
+  const [seasonsData, setSeasonsData] = useState<any>(null);
+  const [dubs, setDubs] = useState<any[]>([]);
+  const [detailsLoading, setDetailsLoading] = useState(true);
 
   const isSeries = movie?.subjectType === 2 || seasonsData?.is_series || (seasonsData?.seasons && seasonsData.seasons.some((s: any) => s.season > 0)) || false;
-  const apiSeason = isSeries ? initialSeason : 0;
-  const apiEpisode = isSeries ? initialEpisode : 0;
 
   const [currentSeason, setCurrentSeason] = useState(initialSeason);
   const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
-  const [files, setFiles] = useState<any[]>(getCachedDownload(id, apiSeason, apiEpisode) ?? []);
-  const [loadingFiles, setLoadingFiles] = useState(!getCachedDownload(id, apiSeason, apiEpisode));
+  const [files, setFiles] = useState<any[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(true);
   const [selectedFile, setSelectedFile] = useState<any>(null);
 
   // Branding intro: shown over the stage while the video warms up underneath.
@@ -83,15 +80,18 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       active = false;
     };
   }, [id]);
-
   // Sync selectedFile when files change (e.g. changing episode)
   useEffect(() => {
     const defaultFile = files.find((f: any) => f.resolution === "720p") || files[0] || null;
     setSelectedFile(defaultFile);
   }, [files]);
 
-  // 2. Fetch stream links whenever the season/episode (or series-ness) changes
+  // 2. Fetch stream links whenever the season/episode (or series-ness) changes.
+  // Wait until details are loaded: isSeries is derived from the movie payload,
+  // so fetching earlier would request with wrong season/episode params.
   useEffect(() => {
+    if (detailsLoading || !movie) return;
+
     let active = true;
     const s = isSeries ? currentSeason : 0;
     const e = isSeries ? currentEpisode : 0;
@@ -116,7 +116,8 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-  }, [currentSeason, currentEpisode, id, isSeries]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSeason, currentEpisode, id, isSeries, detailsLoading, movie]);
 
   // Determine the next episode (within or across seasons)
   const nextEp = useMemo(() => {
@@ -147,19 +148,21 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   useEffect(() => {
     if (!isSeries || !movie?.title) return;
 
+    let active = true;
     const loadTMDBData = async () => {
       try {
         const { searchTVShow, getSeasonEpisodes } = await import("@/services/tmdb");
         const meta = await searchTVShow(movie.title);
+        if (!active || !meta?.id) return;
 
-        if (meta?.id) {
-          const currentEps = await getSeasonEpisodes(meta.id, currentSeason);
-          setCurrentSeasonEpisodes(currentEps);
+        const currentEps = await getSeasonEpisodes(meta.id, currentSeason);
+        if (!active) return;
+        setCurrentSeasonEpisodes(currentEps);
 
-          if (nextEp && nextEp.season !== currentSeason) {
-            const nextEps = await getSeasonEpisodes(meta.id, nextEp.season);
-            setNextSeasonEpisodes(nextEps);
-          }
+        if (nextEp && nextEp.season !== currentSeason) {
+          const nextEps = await getSeasonEpisodes(meta.id, nextEp.season);
+          if (!active) return;
+          setNextSeasonEpisodes(nextEps);
         }
       } catch (err) {
         console.error("Watch page TMDB metadata fetch failed:", err);
@@ -167,6 +170,10 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     };
 
     loadTMDBData();
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSeason, movie?.title, isSeries]);
 
   const currentEpisodeMeta = useMemo(() => {
@@ -259,14 +266,17 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
         <BrandIntro ready={videoReady} onFinish={() => setIntroDone(true)} />
       )}
 
-      {/* Fallback loader if the intro finished but the stream is still resolving */}
+      {/* Fallback skeleton loader if the intro finished but the stream is still resolving */}
       {introDone && !hasError && (loadingFiles || (detailsLoading && !movie)) && (
         <div className={styles.stageLoader}>
           <Link href={backHref} className={styles.floatingBack} title="Back to details">
             <span>←</span>
           </Link>
-          <Loader2 size={44} className={styles.spinnerIcon} />
-          <span className={styles.stageLoaderText}>{playerTitle}</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", width: "80%", maxWidth: "400px" }}>
+            <div className="skeleton" style={{ width: "64px", height: "64px", borderRadius: "50%", opacity: 0.2 }} />
+            <span className={styles.stageLoaderText}>{playerTitle}</span>
+            <div className="skeleton" style={{ width: "100%", height: "4px", borderRadius: "2px", opacity: 0.2 }} />
+          </div>
         </div>
       )}
 

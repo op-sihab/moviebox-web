@@ -69,6 +69,53 @@
   animation: spin 1s linear infinite;
 }
 
+/* Stream error overlay */
+.errorOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  z-index: 16;
+  color: white;
+}
+
+.errorText {
+  font-size: 0.95rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.errorRetryBtn {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.errorRetryBtn:hover {
+  filter: brightness(1.15);
+  transform: scale(1.03);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .playerContainer *,
+  .playerContainer *::before,
+  .playerContainer *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -200,9 +247,15 @@
   opacity: 0;
 }
 
-.timelineContainer:hover .timeline::-webkit-slider-thumb {
+.timelineContainer:hover .timeline::-webkit-slider-thumb,
+.timeline:focus-visible::-webkit-slider-thumb {
   opacity: 1;
   transform: translateY(-25%) scale(1.2);
+}
+
+.timeline:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 /* Bottom Control Bar */
@@ -235,10 +288,19 @@
 }
 
 .iconButton:hover {
-  color: #FF2D55;
+  color: var(--accent-color);
   transform: scale(1.1);
   filter: drop-shadow(0 0 8px rgba(255, 45, 85, 0.6));
   background: rgba(255, 255, 255, 0.08);
+}
+
+.iconButton:focus-visible,
+.menuItem:focus-visible,
+.toastPlayBtn:focus-visible,
+.toastCancelBtn:focus-visible,
+.drawerCloseBtn:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
 }
 
 .activeIcon {
@@ -262,12 +324,15 @@
   outline: none;
   cursor: pointer;
   opacity: 0;
-  transition: width 0.3s ease, opacity 0.3s ease;
+  visibility: hidden;
+  transition: width 0.3s ease, opacity 0.3s ease, visibility 0.3s;
 }
 
-.volumeContainer:hover .volumeSlider {
+.volumeContainer:hover .volumeSlider,
+.volumeContainer:focus-within .volumeSlider {
   width: 70px;
   opacity: 1;
+  visibility: visible;
 }
 
 .volumeSlider::-webkit-slider-thumb {
@@ -350,7 +415,7 @@
 }
 
 .menuHeaderBack:hover {
-  color: #FF2D55;
+  color: var(--accent-color);
 }
 
 .menuList {
@@ -580,7 +645,7 @@
 }
 
 .toastPlayBtn:hover {
-  background: #e50914;
+  background: var(--accent-color);
   color: white;
   box-shadow: 0 0 15px rgba(229, 9, 20, 0.4);
 }
@@ -745,11 +810,11 @@
 
   /* Settings Menu as Mobile Bottom Drawer */
   .settingsMenu {
-    position: fixed;
+    position: absolute;
     bottom: 0;
     left: 0;
     right: 0;
-    width: 100vw;
+    width: 100%;
     border-radius: 20px 20px 0 0;
     background: rgba(15, 15, 15, 0.95);
     border: none;

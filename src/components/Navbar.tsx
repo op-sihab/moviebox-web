@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Search, Bell, User, Home, Tv, Film, Heart } from "lucide-react";
@@ -25,13 +25,25 @@ const MOBILE_NAV_LINKS = [
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
+  const scrollRafRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = window.requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        const next = window.scrollY > 50;
+        setIsScrolled((prev) => (prev === next ? prev : next));
+      });
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollRafRef.current !== null) {
+        window.cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
   }, []);
 
   // Hide the navbar entirely on the full-screen watch experience
@@ -54,6 +66,7 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   className={isActive(link.href) ? styles.active : ""}
+                  aria-current={isActive(link.href) ? "page" : undefined}
                 >
                   {link.label}
                 </Link>
@@ -62,14 +75,17 @@ export default function Navbar() {
           </div>
 
           <div className={styles.right}>
-            <Link href="/search" className={styles.iconBtn} aria-label="Search">
-              <Search size={20} />
+            <Link href="/search" className={styles.searchBtn} aria-label="Search">
+              <Search size={16} />
+              <span className={styles.searchLabel}>Search</span>
+              <span className={styles.searchKbd}>Ctrl K</span>
             </Link>
-            <button className={styles.iconBtn} aria-label="Notifications" style={{ display: "var(--display-desktop-only, flex)" }}>
+            <button className={`${styles.iconBtn} ${styles.desktopOnly}`} aria-label="Notifications">
               <Bell size={20} />
+              <span className={styles.notifDot} aria-hidden="true" />
             </button>
             <div className={styles.profile}>
-              <User size={20} />
+              <User size={17} />
             </div>
           </div>
         </div>
@@ -85,6 +101,7 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               className={`${styles.mobileNavItem} ${active ? styles.mobileActive : ""}`}
+              aria-current={active ? "page" : undefined}
             >
               <Icon size={22} className={styles.mobileNavIcon} />
               <span className={styles.mobileNavLinkText}>{link.label}</span>
@@ -95,4 +112,3 @@ export default function Navbar() {
     </>
   );
 }
-

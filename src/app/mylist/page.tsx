@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import MovieCard from "@/components/MovieCard";
-import { getMyList } from "@/services/mylist";
+import { getMyList, subscribeMyList } from "@/services/mylist";
 import styles from "../browse.module.css";
 
 export default function MyListPage() {
@@ -14,12 +14,14 @@ export default function MyListPage() {
     setItems(getMyList());
     setLoaded(true);
 
-    // Keep in sync if the list changes in another tab
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "mbx:mylist") setItems(getMyList());
+    // Re-read the list whenever it changes — same tab or another tab.
+    // subscribeMyList fans out to all listeners; the underlying
+    // "storage" event (other tabs) is handled by the service itself.
+    const unsubscribe = subscribeMyList(() => setItems(getMyList()));
+
+    return () => {
+      unsubscribe();
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   return (
@@ -42,8 +44,8 @@ export default function MyListPage() {
           </div>
         ) : (
           <div className={styles.grid}>
-            {items.map((item: any) => (
-              <div key={item._id || item.id} className={styles.gridItem}>
+            {items.map((item: any, lIdx: number) => (
+              <div key={`${item._id || item.id || "item"}-${lIdx}`} className={styles.gridItem}>
                 <MovieCard movie={item} />
               </div>
             ))}

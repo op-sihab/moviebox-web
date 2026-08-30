@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181c"/>
+      <stop offset="50%" stop-color="#121215"/>
+      <stop offset="100%" stop-color="#0a0a0c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="45%" r="40%">
+      <stop offset="0%" stop-color="#e50914" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#e50914" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="600" fill="url(#bg)"/>
+  <circle cx="200" cy="270" r="140" fill="url(#glow)"/>
+  
+  <!-- Film Reel / Play Icon Symbol -->
+  <g transform="translate(150, 220)" fill="none" stroke="#e50914" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="0" y="0" width="100" height="100" rx="16" stroke="rgba(255,255,255,0.1)" stroke-width="2" fill="#1e1e24"/>
+    <polygon points="40,32 68,50 40,68" fill="#e50914" stroke="none"/>
+  </g>
+  
+  <text x="200" y="360" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="700" text-anchor="middle" letter-spacing="1">CINEAURA</text>
+  <text x="200" y="385" fill="#71717a" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" text-anchor="middle">Streaming</text>
+</svg>

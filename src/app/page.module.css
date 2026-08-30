@@ -35,13 +35,14 @@
   background: linear-gradient(
     90deg,
     var(--bg-primary) 0%,
-    rgba(10, 10, 10, 0.6) 50%,
+    rgba(9, 9, 11, 0.65) 45%,
     transparent 100%
   ),
   linear-gradient(
     0deg,
     var(--bg-primary) 0%,
-    transparent 40%
+    rgba(9, 9, 11, 0.2) 30%,
+    transparent 55%
   );
 }
 
@@ -49,25 +50,39 @@
   position: relative;
   z-index: 10;
   width: 100%;
-  margin-top: 18rem;
+  margin-top: 16rem;
 }
 
 .heroTitle {
   font-size: clamp(2.5rem, 5vw, 4.5rem);
   font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 1rem;
-  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 1.1rem;
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.8);
+  max-width: 22ch;
 }
 
 .heroMeta {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  font-size: 1.1rem;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
-  margin-bottom: 2rem;
+  margin-bottom: 1.75rem;
   font-weight: 500;
+}
+
+.heroMeta span {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  font-size: 0.85rem;
 }
 
 .rating {
@@ -76,39 +91,43 @@
 
 .heroActions {
   display: flex;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .playButton,
 .infoButton {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--border-radius);
+  gap: 0.55rem;
+  padding: 0.8rem 1.6rem;
+  border-radius: 999px;
   font-weight: 600;
-  font-size: 1.1rem;
-  transition: var(--transition);
+  font-size: 1.05rem;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background 0.25s ease, box-shadow 0.3s ease, border-color 0.25s ease;
 }
 
 .playButton {
-  background: white;
-  color: black;
+  background: linear-gradient(135deg, #8B5CF6 0%, #D946EF 100%);
+  color: white;
+  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.4);
 }
 
 .playButton:hover {
-  background: var(--text-secondary);
   transform: scale(1.05);
+  box-shadow: 0 8px 32px var(--accent-glow);
 }
 
 .infoButton {
-  background: rgba(109, 109, 110, 0.7);
+  background: rgba(255, 255, 255, 0.08);
   color: white;
-  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
 }
 
 .infoButton:hover {
-  background: rgba(109, 109, 110, 0.9);
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.05);
 }
 
@@ -116,4 +135,48 @@
   position: relative;
   z-index: 20;
   margin-top: -10vh; /* pull up over the hero */
+}
+
+/* Homepage fetch-failure banner (rendered instead of the hero) */
+.errorSection {
+  min-height: 70vh;
+  padding-top: 160px; /* clear the fixed navbar */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.errorIcon {
+  color: var(--accent-color);
+}
+
+.errorTitle {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.errorText {
+  max-width: 42ch;
+}
+
+.retryLink {
+  margin-top: 0.75rem;
+  display: inline-block;
+  background: var(--accent-color);
+  color: #fff;
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--border-radius);
+  font-weight: 600;
+  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.retryLink:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 15px var(--accent-glow);
 }

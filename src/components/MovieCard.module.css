@@ -7,8 +7,10 @@
   position: relative;
 }
 
-.cardWrapper.navigating {
-  pointer-events: none; /* Prevent multiple clicks */
+.cardWrapper:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 4px;
+  border-radius: var(--border-radius);
 }
 
 .card {
@@ -30,8 +32,8 @@
   z-index: 10;
 }
 
-/* Maintain hover state visually if navigating */
-.cardWrapper.navigating .card {
+.cardWrapper:focus-visible .card,
+.cardWrapper:focus-within .card {
   transform: translateY(-8px) scale(1.02);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow);
   z-index: 10;
@@ -53,7 +55,7 @@
   left: 0;
   z-index: 1;
   /* Gentle fade-in when the bitmap paints. Driven by the browser, not JS,
-     so the image is always visible once decoded — no stuck skeleton. */
+     so the image is always visible once decoded - no stuck skeleton. */
   animation: cardImageFade 0.3s ease-in;
   transition: transform 0.5s ease, filter 0.3s ease, opacity 0.3s ease;
 }
@@ -71,12 +73,9 @@
   transform: scale(1.05);
 }
 
-.cardWrapper.navigating .image {
+.cardWrapper:focus-visible .image,
+.cardWrapper:focus-within .image {
   transform: scale(1.05);
-}
-
-.imagePulse {
-  filter: blur(2px) brightness(0.7);
 }
 
 .overlay {
@@ -94,9 +93,9 @@
   opacity: 1;
 }
 
-.overlayActive {
-  opacity: 1 !important;
-  background: rgba(0, 0, 0, 0.6);
+.cardWrapper:focus-visible .overlay,
+.cardWrapper:focus-within .overlay {
+  opacity: 1;
 }
 
 .playButton {
@@ -113,23 +112,15 @@
   box-shadow: 0 4px 15px var(--accent-glow);
 }
 
-.cardWrapper:hover .playButton,
-.cardWrapper.navigating .playButton {
+.cardWrapper:hover .playButton {
   transform: scale(1);
   opacity: 1;
 }
 
-.spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.cardWrapper:focus-visible .playButton,
+.cardWrapper:focus-within .playButton {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .bottomInfo {
@@ -150,8 +141,12 @@
   transition: color 0.2s ease;
 }
 
-.cardWrapper:hover .bottomTitle,
-.cardWrapper.navigating .bottomTitle {
+.cardWrapper:hover .bottomTitle {
+  color: var(--accent-color);
+}
+
+.cardWrapper:focus-visible .bottomTitle,
+.cardWrapper:focus-within .bottomTitle {
   color: var(--accent-color);
 }
 

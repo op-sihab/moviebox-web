@@ -1,42 +1,42 @@
-.cardWrapper {
+.cardContainer {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-md);
+}
+
+.cardLink {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   text-decoration: none;
   width: 100%;
   position: relative;
+  border-radius: var(--radius-md);
 }
 
-.cardWrapper:focus-visible {
+.cardLink:focus-visible {
   outline: 2px solid var(--accent-color);
   outline-offset: 4px;
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);
 }
 
 .card {
   display: block;
   position: relative;
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  transition: var(--transition);
   aspect-ratio: 2 / 3;
   cursor: pointer;
   background-color: var(--bg-secondary);
   width: 100%;
   min-height: 0;
+  transition: transform 0.3s var(--ease-out), box-shadow 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.cardWrapper:hover .card {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow);
-  z-index: 10;
-}
-
-.cardWrapper:focus-visible .card,
-.cardWrapper:focus-within .card {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow);
-  z-index: 10;
+.cardContainer:hover .card {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .imageContainer {
@@ -44,6 +44,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 .image {
@@ -54,10 +55,8 @@
   top: 0;
   left: 0;
   z-index: 1;
-  /* Gentle fade-in when the bitmap paints. Driven by the browser, not JS,
-     so the image is always visible once decoded - no stuck skeleton. */
   animation: cardImageFade 0.3s ease-in;
-  transition: transform 0.5s ease, filter 0.3s ease, opacity 0.3s ease;
+  transition: transform 0.45s var(--ease-out);
 }
 
 @keyframes cardImageFade {
@@ -69,38 +68,34 @@
   }
 }
 
-.cardWrapper:hover .image {
-  transform: scale(1.05);
-}
-
-.cardWrapper:focus-visible .image,
-.cardWrapper:focus-within .image {
+.cardContainer:hover .image {
   transform: scale(1.05);
 }
 
 .overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: linear-gradient(
+    to top,
+    rgba(8, 9, 12, 0.7) 0%,
+    rgba(8, 9, 12, 0.2) 50%,
+    transparent 100%
+  );
   opacity: 0;
-  transition: all 0.3s ease;
+  transition: opacity 0.25s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 
-.cardWrapper:hover .overlay {
+.cardContainer:hover .overlay {
   opacity: 1;
 }
 
-.cardWrapper:focus-visible .overlay,
-.cardWrapper:focus-within .overlay {
-  opacity: 1;
-}
-
-.playButton {
-  width: 54px;
-  height: 54px;
+.playButtonIcon {
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: var(--accent-color);
   display: flex;
@@ -108,66 +103,103 @@
   justify-content: center;
   transform: scale(0.8);
   opacity: 0;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 4px 15px var(--accent-glow);
+  transition: transform 0.25s var(--ease-spring), opacity 0.2s ease;
+  box-shadow: 0 4px 16px var(--accent-glow);
 }
 
-.cardWrapper:hover .playButton {
+.cardContainer:hover .playButtonIcon {
   transform: scale(1);
   opacity: 1;
 }
 
-.cardWrapper:focus-visible .playButton,
-.cardWrapper:focus-within .playButton {
-  transform: scale(1);
-  opacity: 1;
+.qualityBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 3;
+}
+
+.cardRatingBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(14, 16, 21, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(245, 166, 35, 0.35);
+  color: var(--gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  z-index: 3;
 }
 
 .bottomInfo {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0 0.2rem;
+  gap: 0.2rem;
+  padding: 0 0.15rem;
 }
 
 .bottomTitle {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  letter-spacing: -0.01em;
   transition: color 0.2s ease;
 }
 
-.cardWrapper:hover .bottomTitle {
-  color: var(--accent-color);
-}
-
-.cardWrapper:focus-visible .bottomTitle,
-.cardWrapper:focus-within .bottomTitle {
-  color: var(--accent-color);
+.cardContainer:hover .bottomTitle {
+  color: #fff;
 }
 
 .bottomMeta {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   color: var(--text-secondary);
 }
 
-.rating {
-  color: #fbbf24; /* Gold star */
+.year {
+  background: rgba(255, 255, 255, 0.07);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mediaTypeLabel {
+  font-size: 0.72rem;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
-.year {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 2px 6px;
+.episodeLabel {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-hover);
+  padding: 2px 7px;
   border-radius: 4px;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .progressBarContainer {
@@ -175,23 +207,244 @@
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.2);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.16);
   z-index: 5;
 }
 
 .progressBar {
   height: 100%;
   background: var(--accent-color);
-  box-shadow: 0 0 8px var(--accent-color);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
-.episodeLabel {
-  background: rgba(229, 9, 20, 0.2);
-  border: 1px solid rgba(229, 9, 20, 0.4);
-  color: var(--accent-color);
-  padding: 2px 8px;
+/* ==========================================================================
+   NETFLIX-STYLE ELEVATED HOVER MINI-CARD MODAL
+   ========================================================================== */
+.hoverModal {
+  position: absolute;
+  top: -12px;
+  left: -20px;
+  width: calc(100% + 40px);
+  min-width: 250px;
+  background: #12151d;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  z-index: var(--z-hover-card, 150);
+  cursor: pointer;
+  animation: hoverModalPop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+}
+
+@keyframes hoverModalPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modalMediaWrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: #08090c;
+}
+
+.modalImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s var(--ease-out);
+}
+
+.hoverModal:hover .modalImage {
+  transform: scale(1.04);
+}
+
+.modalGradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    #12151d 0%,
+    rgba(18, 21, 29, 0.4) 40%,
+    transparent 100%
+  );
+}
+
+.modalPlayOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  background: rgba(0, 0, 0, 0.3);
+  transition: opacity 0.2s ease;
+}
+
+.hoverModal:hover .modalPlayOverlay {
+  opacity: 1;
+}
+
+.modalCenterPlay {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 18px var(--accent-glow);
+  transform: scale(0.9);
+  transition: transform 0.2s var(--ease-spring);
+}
+
+.modalPlayOverlay:hover .modalCenterPlay {
+  transform: scale(1.08);
+}
+
+.modalHdBadge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
   border-radius: 4px;
-  font-size: 0.75rem;
+}
+
+.modalBody {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.modalActionsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modalActionsLeft {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.modalPlayBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #08090c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.2);
+}
+
+.modalPlayBtn:hover {
+  background: #f0f0f0;
+  transform: scale(1.08);
+  box-shadow: 0 4px 16px rgba(255, 255, 255, 0.4);
+}
+
+.modalIconBtn,
+.modalDetailsBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.modalIconBtn:hover,
+.modalDetailsBtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.06);
+}
+
+.modalIconActive {
+  background: var(--accent-color) !important;
+  border-color: var(--accent-color) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 10px var(--accent-glow);
+}
+
+.modalTitle {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.modalMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.modalRating {
+  color: var(--gold);
   font-weight: 700;
 }
+
+.modalYear {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.modalTypePill {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.modalGenres {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.dot {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.6rem;
+}
+
+/* On mobile touch devices, disable the desktop hover modal */
+@media (max-width: 768px) {
+  .hoverModal {
+    display: none;
+  }
+}
+

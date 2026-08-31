@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Plus, Check, ThumbsUp, Star } from "lucide-react";
+import { Play, Plus, Check, Star, Volume2, ChevronLeft, Download, Sparkles } from "lucide-react";
 import Carousel from "@/components/Carousel";
+import DetailPageSkeleton from "@/components/DetailPageSkeleton";
 import MovieCardSkeleton from "@/components/MovieCardSkeleton";
 import {
   getCachedCore,
@@ -31,46 +32,27 @@ export default function MovieClient({ id }: MovieClientProps) {
     setActiveId(id);
   }, [id]);
 
-  // Keep activeId in sync when the user navigates back/forward after a
-  // manual pushState-based dub switch
-  useEffect(() => {
-    const handlePopState = () => {
-      const match = window.location.pathname.match(/^\/movie\/([^/?#]+)/);
-      if (match && match[1] && decodeURIComponent(match[1]) !== activeId) {
-        setActiveId(decodeURIComponent(match[1]));
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [activeId]);
-
-  const [movie, setMovie] = useState<any>(null);
-  const [cast, setCast] = useState<any[]>([]);
-  const [dubs, setDubs] = useState<any[]>([]);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
-  const [tmdbLogoUrl, setTmdbLogoUrl] = useState<string | null>(null);
+  // Read synchronously from in-memory cache on initial render so navigation is instantaneous
+  const [movie, setMovie] = useState<any>(() => getCachedCore(activeId)?.movie ?? null);
+  const [cast, setCast] = useState<any[]>(() => getCachedCore(activeId)?.cast ?? []);
+  const [dubs, setDubs] = useState<any[]>(() => getCachedCore(activeId)?.dubs ?? []);
+  const [recommendations, setRecommendations] = useState<any[]>(() => getCachedRecs(activeId) ?? []);
+  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.backdropUrl ?? null);
+  const [tmdbLogoUrl, setTmdbLogoUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.logoUrl ?? null);
+  const [tmdbMeta, setTmdbMeta] = useState<any>(() => getCachedTmdb(activeId)?.meta ?? null);
   const [logoReady, setLogoReady] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [recsLoading, setRecsLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCachedCore(activeId)?.movie);
+  const [recsLoading, setRecsLoading] = useState(() => !getCachedRecs(activeId));
   const [inList, setInList] = useState(false);
   const [fetchError, setFetchError] = useState(false);
-  const MIN_SKELETON_MS = 350;
-  const skeletonStartRef = useRef(0);
-
-  const beginSkeleton = () => {
-    skeletonStartRef.current = Date.now();
-    setLoading(true);
-  };
-
-  const endSkeleton = (apply: () => void) => {
-    const elapsed = Date.now() - skeletonStartRef.current;
-    const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
-    window.setTimeout(() => {
-      apply();
-    }, wait);
-  };
   const [continueRecord, setContinueRecord] = useState<{ progress?: number; duration?: number } | null>(null);
+
+  // Reflect the saved state once we know the movie
+  useEffect(() => {
+    if (movie) {
+      setInList(isInMyList({ _id: activeId, id: activeId }));
+    }
+  }, [movie, activeId]);
 
   // Query localStorage to check if there is an active continue watching record for this movie
   useEffect(() => {
@@ -78,10 +60,9 @@ export default function MovieClient({ id }: MovieClientProps) {
       const saved = localStorage.getItem("mbx:continue_watching");
       if (saved) {
         const history = JSON.parse(saved);
-        
-        // Collect all IDs associated with this movie across all dubs
+
         const allIds = new Set<string>();
-        if (activeId) allIds.add(String(activeId));
+        allIds.add(String(activeId));
         if (movie?.subjectId) allIds.add(String(movie.subjectId));
         if (movie?.detailPath) allIds.add(String(movie.detailPath));
         if (dubs) {
@@ -105,10 +86,10 @@ export default function MovieClient({ id }: MovieClientProps) {
           return false;
         });
 
-        if (record && typeof record.progress === "number" && typeof record.duration === "number") {
+        if (record && record.progress && record.duration) {
           setContinueRecord({
             progress: record.progress,
-            duration: record.duration
+            duration: record.duration,
           });
         } else {
           setContinueRecord(null);
@@ -117,16 +98,9 @@ export default function MovieClient({ id }: MovieClientProps) {
         setContinueRecord(null);
       }
     } catch (e) {
-      console.error("Failed to load continue watching record in details page", e);
+      console.error("Failed to load continue watching record in movie details page", e);
     }
   }, [activeId, movie, dubs]);
-
-  // Reflect the saved state once we know the movie
-  useEffect(() => {
-    if (movie) {
-      setInList(isInMyList({ _id: activeId, id: activeId }));
-    }
-  }, [movie, activeId]);
 
   const handleToggleList = () => {
     if (!movie) return;
@@ -142,32 +116,27 @@ export default function MovieClient({ id }: MovieClientProps) {
     setInList(nowIn);
   };
 
+  // Fetch logic
   useEffect(() => {
     let active = true;
 
-    // Re-read cache on activeId change (e.g. client-side navigation between movies).
-    // This runs inside the effect (not during render) so SSR and the first client
-    // render always match, avoiding hydration mismatches from sessionStorage.
     const core = getCachedCore(activeId);
     const tmdb = getCachedTmdb(activeId);
     const recs = getCachedRecs(activeId);
-
-    if (!core) {
-      beginSkeleton();
-    }
 
     if (core) {
       setMovie(core.movie);
       setCast(core.cast);
       setDubs(core.dubs || []);
-      endSkeleton(() => {
-        if (active) setLoading(false);
-      });
+      if (active) setLoading(false);
+    } else {
+      setLoading(true);
     }
     if (tmdb) {
       setTmdbBackdropUrl(tmdb.backdropUrl ?? null);
       if (tmdb.logoUrl !== tmdbLogoUrl) setLogoReady(false);
       if (tmdb.logoUrl) setTmdbLogoUrl(tmdb.logoUrl);
+      if (tmdb.meta) setTmdbMeta(tmdb.meta);
     }
     if (recs) {
       setRecommendations(recs);
@@ -176,7 +145,7 @@ export default function MovieClient({ id }: MovieClientProps) {
       setRecsLoading(true);
     }
 
-    // 1. CRITICAL PATH: MovieBox details only. Render as soon as this resolves.
+    // 1. CRITICAL PATH: MovieBox details only
     fetchCore(activeId)
       .then((data) => {
         if (!active) return;
@@ -184,11 +153,9 @@ export default function MovieClient({ id }: MovieClientProps) {
         setCast(data.cast);
         setDubs(data.dubs || []);
         setFetchError(false);
-        endSkeleton(() => {
-          if (active) setLoading(false);
-        });
+        setLoading(false);
 
-        // 2. NON-BLOCKING: TMDB backdrop/logo enrichment swaps in when ready.
+        // 2. NON-BLOCKING: TMDB backdrop/logo enrichment
         if (data.movie?.title) {
           fetchTmdb(activeId, "movie", data.movie.title)
             .then((enr) => {
@@ -198,6 +165,7 @@ export default function MovieClient({ id }: MovieClientProps) {
                 setLogoReady(false);
                 setTmdbLogoUrl(enr.logoUrl);
               }
+              if (enr.meta) setTmdbMeta(enr.meta);
             })
             .catch(() => {});
         }
@@ -205,16 +173,12 @@ export default function MovieClient({ id }: MovieClientProps) {
       .catch((err) => {
         console.error("Failed to load details", err);
         if (active) {
-          endSkeleton(() => {
-            if (active) {
-              setFetchError(true);
-              setLoading(false);
-            }
-          });
+          setFetchError(true);
+          setLoading(false);
         }
       });
 
-    // 3. NON-CRITICAL: recommendations (lazy section at the bottom)
+    // 3. NON-CRITICAL: recommendations
     fetchRecs(activeId)
       .then((mapped) => {
         if (!active) return;
@@ -229,79 +193,39 @@ export default function MovieClient({ id }: MovieClientProps) {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, retryToken]);
 
-  // Loading / Skeleton State (100% matched to page layout to prevent layout shift)
-  if (loading) {
-    return (
-      <div className={styles.main}>
-        {/* Backdrop Skeleton */}
-        <div className={styles.backdropContainer}>
-          <div className="skeleton" style={{ width: "100%", height: "100%" }} />
-          <div className={styles.backdropGradient}></div>
-        </div>
+  // Clean cast filter (Actors only, with fallback to TMDB)
+  const displayedCast = useMemo(() => {
+    const mbxActors = (cast || []).filter((c: any) => {
+      const char = (c.character || "").toLowerCase();
+      const isActorRole = !/director|writer|author|editor|producer|composer/i.test(char);
+      const hasAvatar = !!c.avatarUrl;
+      return isActorRole && hasAvatar;
+    });
 
-        <div className={`container ${styles.contentWrapper}`}>
-          <div className={styles.mainContent}>
-            {/* Poster Column Skeleton */}
-            <div className={styles.posterColumn}>
-              <div className={`${styles.poster} skeleton`} style={{ border: "none" }} />
-            </div>
-            
-            {/* Info Column Skeleton */}
-            <div className={styles.infoColumn}>
-              {/* Title Skeleton */}
-              <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem", borderRadius: "10px" }} />
-              
-              {/* Meta Row Skeleton */}
-              <div className={styles.metaRow} style={{ gap: "1rem" }}>
-                <div className="skeleton" style={{ height: "1.3rem", width: "80px", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.3rem", width: "60px", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.3rem", width: "50px", borderRadius: "6px" }} />
-              </div>
-              
-              {/* Genres Skeleton */}
-              <div className={styles.genres} style={{ gap: "0.75rem", marginBottom: "2rem" }}>
-                <div className="skeleton" style={{ height: "2rem", width: "100px", borderRadius: "20px" }} />
-                <div className="skeleton" style={{ height: "2rem", width: "120px", borderRadius: "20px" }} />
-                <div className="skeleton" style={{ height: "2rem", width: "80px", borderRadius: "20px" }} />
-              </div>
-              
-              {/* Description Skeleton */}
-              <div style={{ marginBottom: "2.5rem" }}>
-                <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-              </div>
-              
-              {/* Action Buttons Skeleton */}
-              <div className={styles.actionButtons} style={{ gap: "1rem", marginBottom: "3rem" }}>
-                <div className="skeleton" style={{ height: "3.2rem", width: "160px", borderRadius: "8px" }} />
-                <div className="skeleton" style={{ height: "3.2rem", width: "48px", borderRadius: "50%" }} />
-                <div className="skeleton" style={{ height: "3.2rem", width: "48px", borderRadius: "50%" }} />
-              </div>
-              
-              {/* Cast Skeleton */}
-              <div className={styles.castSection}>
-                <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem", borderRadius: "6px" }} />
-                <div className={styles.castList} style={{ gap: "1.5rem" }}>
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={styles.castMember} style={{ background: "rgba(255, 255, 255, 0.02)", border: "none" }}>
-                      <div className="skeleton" style={{ width: "60px", height: "60px", borderRadius: "50%", flexShrink: 0 }} />
-                      <div className={styles.castInfo} style={{ gap: "0.5rem" }}>
-                        <div className="skeleton" style={{ height: "1rem", width: "80px", borderRadius: "4px" }} />
-                        <div className="skeleton" style={{ height: "0.85rem", width: "60px", borderRadius: "4px" }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    if (mbxActors.length >= 3) {
+      return mbxActors;
+    }
+
+    if (tmdbMeta?.cast && tmdbMeta.cast.length > 0) {
+      return tmdbMeta.cast;
+    }
+
+    if (mbxActors.length > 0) {
+      return mbxActors;
+    }
+
+    const anyActors = (cast || []).filter((c: any) => {
+      return !/director|writer|author|editor|producer|composer/i.test(c.character || "");
+    });
+
+    return anyActors.length > 0 ? anyActors : cast || [];
+  }, [cast, tmdbMeta?.cast]);
+
+  // Loading skeleton state
+  if (loading) {
+    return <DetailPageSkeleton />;
   }
 
   if (!movie) {
@@ -311,11 +235,9 @@ export default function MovieClient({ id }: MovieClientProps) {
           <h1>{fetchError ? "Something went wrong" : "Movie not found"}</h1>
           {fetchError && (
             <button
-              className={styles.playButton}
-              style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}
+              className={styles.playPillButton}
               onClick={() => {
                 setFetchError(false);
-                skeletonStartRef.current = Date.now();
                 setLoading(true);
                 setRetryToken((t) => t + 1);
               }}
@@ -323,7 +245,7 @@ export default function MovieClient({ id }: MovieClientProps) {
               Try Again
             </button>
           )}
-          <Link href="/" className={styles.playButton} style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}>
+          <Link href="/" className={styles.playPillButton}>
             Back to Home
           </Link>
         </div>
@@ -332,33 +254,42 @@ export default function MovieClient({ id }: MovieClientProps) {
   }
 
   const bgImage = tmdbBackdropUrl || movie.cover?.url;
+  const durationMin = movie.duration > 0 ? Math.floor(movie.duration / 60) : null;
+  const hours = durationMin ? Math.floor(durationMin / 60) : 0;
+  const mins = durationMin ? durationMin % 60 : 0;
+  const formattedDuration = hours > 0 ? `${hours}h ${mins}m` : durationMin ? `${durationMin}m` : null;
 
   return (
     <div className={styles.main}>
-      <div className={styles.backdropContainer}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={img.backdrop(bgImage)}
-          alt={movie.title}
-          className={styles.backdropImage}
-        />
-        <div className={styles.backdropGradient}></div>
-      </div>
+      {/* 1. IMMERSIVE HERO SHOWCASE */}
+      <section className={styles.heroStage}>
+        {/* Top-Left Floating Back Button */}
+        <button
+          onClick={() => window.history.back()}
+          className={styles.backButton}
+          aria-label="Go Back"
+          title="Back"
+        >
+          <ChevronLeft size={22} />
+        </button>
 
-      <div className={`container ${styles.contentWrapper}`}>
-        <div className={styles.mainContent}>
-          <div className={styles.posterColumn}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={img.poster(movie.cover?.url)}
-              alt={movie.title}
-              className={styles.poster}
-            />
-          </div>
-          
-          <div className={styles.infoColumn}>
+        <div className={styles.backdropContainer}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img.backdrop(bgImage)}
+            alt={movie.title}
+            className={styles.backdropImage}
+            fetchPriority="high"
+            decoding="async"
+          />
+          <div className={styles.backdropGradient} />
+        </div>
+
+        <div className={`container ${styles.heroContentWrapper}`}>
+          <div className={styles.heroContent}>
+            {/* Title Logo or Typographic Headline */}
             {!tmdbLogoUrl ? (
-              <h1 className={styles.title}>{movie.title}</h1>
+              <h1 className={styles.heroTitle}>{movie.title}</h1>
             ) : (
               <div className={`${styles.logoContainer} ${logoReady ? styles.logoVisible : ""}`}>
                 {!logoReady && <div className={`${styles.logoSkeleton} skeleton`} />}
@@ -371,36 +302,53 @@ export default function MovieClient({ id }: MovieClientProps) {
                 />
               </div>
             )}
-            
-            <div className={styles.metaRow}>
+
+            {/* Minimalist Inline Meta Line (Red Star • Year • Duration • Genres) */}
+            <div className={styles.heroMetaLine}>
               {movie.imdbRatingValue && (
-                <span className={styles.rating}>
-                  <Star fill="#fbbf24" color="#fbbf24" size={16} />
-                  {movie.imdbRatingValue}
+                <span className={styles.ratingInline}>
+                  <Star size={14} fill="#e50914" color="#e50914" />
+                  <strong className={styles.ratingVal}>{movie.imdbRatingValue}</strong>
                 </span>
               )}
-              {movie.releaseDate && <span>{movie.releaseDate.split("-")[0]}</span>}
-              {movie.duration > 0 && <span>{Math.floor(movie.duration / 60)}m</span>}
-              <span className={styles.hdBadge}>HD</span>
+              {movie.releaseDate && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span>{movie.releaseDate.split("-")[0]}</span>
+                </>
+              )}
+              {formattedDuration && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span>{formattedDuration}</span>
+                </>
+              )}
+              {movie.genre && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span className={styles.genreInline}>
+                    {movie.genre.split(",").slice(0, 3).map((g: string) => g.trim()).join(" • ")}
+                  </span>
+                </>
+              )}
             </div>
-            
-                {movie.genre && (
-                  <div className={styles.genres}>
-                    {movie.genre.split(",").map((g: string, gi: number) => (
-                      <span key={`${g}-${gi}`} className={styles.genreTag}>{g.trim()}</span>
-                    ))}
-                  </div>
-                )}
-            
-            <p className={styles.description}>{movie.description}</p>
-            
+
+            {/* Short Plot Logline */}
+            {movie.description && (
+              <p className={styles.heroOverview}>{movie.description}</p>
+            )}
+
+            {/* Audio Dub Selector */}
             {dubs && dubs.length > 1 && (
               <div className={styles.dubsContainer}>
-                <span className={styles.dubsLabel}>Audio / Dubbing:</span>
+                <div className={styles.dubsHeader}>
+                  <Volume2 size={14} />
+                  <span>Available Audio Dubs</span>
+                </div>
                 <div className={styles.dubsList}>
                   {dubs.map((d: any, di: number) => {
-                    const isCurrent = 
-                      String(d.subject_id) === String(activeId) || 
+                    const isCurrent =
+                      String(d.subject_id) === String(activeId) ||
                       String(d.detail_path) === String(activeId) ||
                       String(d.subject_id) === String(movie?.subjectId) ||
                       String(d.detail_path) === String(movie?.detailPath);
@@ -420,79 +368,190 @@ export default function MovieClient({ id }: MovieClientProps) {
                 </div>
               </div>
             )}
-            
-            <div className={styles.actionButtons} style={{ position: "relative" }}>
-              {continueRecord && continueRecord.progress && continueRecord.duration ? (
-                <div style={{ position: "absolute", top: "-28px", left: "0", right: "120px", display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ flex: 1, height: "3px", backgroundColor: "rgba(255,255,255,0.2)", borderRadius: "2px", overflow: "hidden" }}>
-                    <div style={{ width: `${(continueRecord.progress / continueRecord.duration) * 100}%`, height: "100%", backgroundColor: "var(--accent-color)" }} />
+
+            {/* Primary Action Buttons Bar */}
+            <div className={styles.actionButtons}>
+              {continueRecord?.progress && continueRecord?.duration ? (
+                <div className={styles.resumeRow}>
+                  <div className={styles.resumeTrack}>
+                    <div
+                      className={styles.resumeFill}
+                      style={{ width: `${(continueRecord.progress / continueRecord.duration) * 100}%` }}
+                    />
                   </div>
-                  <span style={{ fontSize: "0.85rem", fontWeight: "bold", whiteSpace: "nowrap" }}>
+                  <span className={styles.resumeText}>
                     {Math.floor(continueRecord.progress / 60)} of {Math.floor(continueRecord.duration / 60)}m
                   </span>
                 </div>
               ) : null}
+
+              {/* White High-Contrast Play Pill Button */}
               <Link
                 href={`/watch/${activeId}`}
-                className={styles.playButton}
+                className={styles.playPillButton}
                 onMouseEnter={() => prefetchDownload(activeId, 0, 0)}
                 onTouchStart={() => prefetchDownload(activeId, 0, 0)}
               >
-                <Play fill="black" size={24} />
-                <span>{continueRecord && continueRecord.progress ? "Resume" : "Play"}</span>
+                <Play fill="currentColor" size={19} />
+                <span>{continueRecord?.progress ? "Resume" : "Play"}</span>
               </Link>
+
+              {/* Circular Watchlist Button */}
               <button
-                className={styles.iconButton}
+                className={`${styles.circleWatchlistBtn} ${inList ? styles.circleWatchlistBtnActive : ""}`}
                 onClick={handleToggleList}
                 title={inList ? "Remove from My List" : "Add to My List"}
+                aria-label={inList ? "In Watchlist" : "Add to Watchlist"}
               >
-                {inList ? <Check size={24} /> : <Plus size={24} />}
+                {inList ? <Check size={20} /> : <Plus size={20} />}
               </button>
-              <button className={styles.iconButton}>
-                <ThumbsUp size={24} />
+
+              {/* Download Action Button */}
+              <Link
+                href={`/watch/${activeId}`}
+                className={styles.pillActionBtn}
+                title="Direct Play & Download"
+              >
+                <Download size={16} />
+                <span>Download</span>
+              </Link>
+
+              {/* Similars Scroll Button */}
+              <button
+                className={styles.pillActionBtn}
+                onClick={() => {
+                  document.getElementById("recommendations")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                title="Explore Similar Movies"
+              >
+                <Sparkles size={16} />
+                <span>Similars</span>
               </button>
             </div>
-            
-            {cast.length > 0 && (
+          </div>
+        </div>
+      </section>
+
+      {/* 2. CONTENT HUB & SPECS SIDEBAR */}
+      <div className={`container ${styles.detailsHub}`}>
+        <div className={styles.hubGrid}>
+          {/* Main Story & Cast Section */}
+          <div className={styles.hubMain}>
+            {/* Storyline Card */}
+            <div className={styles.storylineCard}>
+              <h3 className={styles.hubSectionTitle}>Storyline</h3>
+              <p className={styles.storylineText}>{movie.description || "No synopsis available."}</p>
+            </div>
+
+            {/* Top Billed Cast Rail */}
+            {displayedCast.length > 0 && (
               <div className={styles.castSection}>
-                <h3>Cast</h3>
-                <div className={styles.castList}>
-                  {cast.slice(0, 5).map((star: any, cIdx: number) => (
-                    <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castMember}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={star.avatarUrl ? img.avatar(star.avatarUrl) : "/placeholder.png"} 
-                        alt={star.name} 
-                        className={styles.castAvatar}
-                      />
-                      <div className={styles.castInfo}>
-                        <span className={styles.castName}>{star.name}</span>
-                        <span className={styles.castRole}>{star.character}</span>
+                <h3 className={styles.hubSectionTitle}>Top Billed Cast</h3>
+                <div className={styles.castGrid}>
+                  {displayedCast.slice(0, 10).map((star: any, cIdx: number) => {
+                    const avatarSrc = star.avatarUrl ? img.avatar(star.avatarUrl) : null;
+                    return (
+                      <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castCard}>
+                        <div className={styles.castAvatarWrapper}>
+                          {avatarSrc ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={avatarSrc}
+                              alt={star.name}
+                              className={styles.castAvatarImg}
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = "none";
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={styles.castAvatarFallback}
+                            style={{ display: avatarSrc ? "none" : "flex" }}
+                          >
+                            {star.name ? star.name.charAt(0).toUpperCase() : "★"}
+                          </div>
+                        </div>
+
+                        <div className={styles.castCardInfo}>
+                          <span className={styles.castNameText}>{star.name}</span>
+                          <span className={styles.castRoleText}>{star.character || "Cast"}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
           </div>
+
+          {/* Right Info Specs Rail */}
+          <aside className={styles.hubSidebar}>
+            <div className={styles.specsCard}>
+              <h4 className={styles.specsTitle}>Information</h4>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Release Date</span>
+                <span className={styles.specValue}>{movie.releaseDate || "Unknown"}</span>
+              </div>
+
+              {formattedDuration && (
+                <div className={styles.specItem}>
+                  <span className={styles.specLabel}>Duration</span>
+                  <span className={styles.specValue}>{formattedDuration}</span>
+                </div>
+              )}
+
+              {movie.countryName && (
+                <div className={styles.specItem}>
+                  <span className={styles.specLabel}>Country</span>
+                  <span className={styles.specValue}>{movie.countryName}</span>
+                </div>
+              )}
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Quality</span>
+                <span className={styles.specValue}>4K Ultra HD • HDR</span>
+              </div>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Audio</span>
+                <span className={styles.specValue}>Dolby Atmos 5.1</span>
+              </div>
+
+              {movie.subtitles && (
+                <div className={styles.specItem}>
+                  <span className={styles.specLabel}>Subtitles</span>
+                  <span className={styles.specSubtitles}>
+                    {movie.subtitles.split(",").slice(0, 6).join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
 
-        {recsLoading ? (
-          <div className={styles.recommendations}>
-            <h3 style={{ fontSize: "1.2rem", fontWeight: "600", borderLeft: "3px solid var(--accent-color)", paddingLeft: "0.5rem", marginBottom: "1.5rem", color: "var(--text-primary)" }}>More Like This</h3>
-            <div style={{ display: "flex", gap: "1.25rem", overflow: "hidden" }}>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} style={{ width: "180px", flexShrink: 0 }}>
-                  <MovieCardSkeleton />
-                </div>
-              ))}
+        {/* 3. RECOMMENDATIONS SECTION */}
+        <div id="recommendations">
+          {recsLoading && recommendations.length === 0 ? (
+            <div className={styles.recommendations}>
+              <h3 className={styles.hubSectionTitle}>More Like This</h3>
+              <div className={styles.recsSkeletonRow}>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className={styles.recsSkeletonItem}>
+                    <MovieCardSkeleton />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : recommendations.length > 0 ? (
-          <div className={styles.recommendations}>
-            <Carousel title="More Like This" movies={recommendations} />
-          </div>
-        ) : null}
+          ) : recommendations.length > 0 ? (
+            <div className={styles.recommendations}>
+              <Carousel title="More Like This" movies={recommendations} />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

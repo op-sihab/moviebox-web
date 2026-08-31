@@ -106,3 +106,38 @@ declare module "next/font/google" {
 interface RequestInit {
   next?: { revalidate?: number | false; tags?: string[] };
 }
+
+declare module "next/server" {
+  export class NextResponse<Body = any> extends Response {
+    static json(body: any, init?: ResponseInit): NextResponse;
+    static redirect(url: string | URL, init?: number | ResponseInit): NextResponse;
+    static rewrite(url: string | URL, init?: ResponseInit): NextResponse;
+    static next(init?: ResponseInit): NextResponse;
+  }
+  export class NextRequest extends Request {
+    readonly nextUrl: URL;
+    readonly ip?: string;
+    readonly geo?: {
+      city?: string;
+      country?: string;
+      region?: string;
+      latitude?: string;
+      longitude?: string;
+    };
+    readonly cookies: any;
+  }
+}
+
+declare module "next/server.js" {
+  export * from "next/server";
+}
+
+declare module "next/types" {
+  export type ResolvingMetadata = Promise<any>;
+  export type ResolvingViewport = Promise<any>;
+}
+
+declare module "next/types.js" {
+  export * from "next/types";
+}
+

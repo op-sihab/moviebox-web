@@ -1,36 +1,70 @@
 .main {
   min-height: 100vh;
-  padding-top: 100px;
+  padding: 100px 0 5rem;
+  background-color: var(--bg-primary);
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+/* Header & Search Bar */
+.searchHero {
+  margin-bottom: 2rem;
+}
+
+.pageTitle {
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.pageTitle span {
+  color: var(--accent-color);
+}
+
+.pageSubtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+}
+
+.searchBarWrapper {
+  position: relative;
+  width: 100%;
 }
 
 .searchBar {
   position: relative;
-  margin: 2rem 0 0;
   display: flex;
   align-items: center;
   background: var(--bg-card);
-  border-radius: var(--border-radius);
+  border-radius: 12px;
   border: 1px solid var(--border-color);
-  padding: 0.5rem 1rem;
-  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0.25rem 1.25rem;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  backdrop-filter: blur(12px);
 }
 
 .searchBar:focus-within {
   border-color: var(--accent-color);
-  box-shadow: 0 0 15px var(--accent-glow);
-  background: rgba(30, 30, 30, 0.9);
+  box-shadow: 0 0 20px var(--accent-glow), 0 4px 20px rgba(0, 0, 0, 0.4);
+  background: rgba(26, 26, 26, 0.95);
 }
 
 .searchIcon {
   color: var(--text-secondary);
-  margin-right: 1rem;
+  margin-right: 0.85rem;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.searchBar:focus-within .searchIcon {
+  color: var(--accent-color);
 }
 
 .searchInput {
@@ -38,22 +72,45 @@
   background: transparent;
   border: none;
   color: var(--text-primary);
-  font-size: 1.25rem;
-  padding: 1rem 0;
+  font-size: 1.15rem;
+  padding: 0.85rem 0;
   outline: none;
+  font-weight: 500;
 }
 
 .searchInput::placeholder {
   color: var(--text-muted);
+  font-weight: 400;
 }
 
 .fallbackText {
   color: var(--text-muted);
 }
 
+.clearButton {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  transition: background 0.2s ease, color 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.clearButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+}
+
 .spinner {
   color: var(--accent-color);
-  animation: spin 1s linear infinite;
+  animation: spin 0.8s linear infinite;
+  margin-left: 0.5rem;
 }
 
 @keyframes spin {
@@ -61,60 +118,112 @@
   to { transform: rotate(360deg); }
 }
 
-/* Subtle determinate-style progress bar shown under the search bar while loading */
-.loadingBar {
-  position: relative;
-  height: 2px;
-  margin-bottom: 1.5rem;
-  border-radius: 2px;
-  background: var(--bg-secondary);
+/* Loading Bar that does not push content */
+.loadingBarContainer {
+  height: 3px;
+  width: 100%;
+  background: transparent;
   overflow: hidden;
+  border-radius: 2px;
+  margin-top: 4px;
+  margin-bottom: 1.5rem;
 }
 
-.loadingBar::after {
+.loadingBarActive {
+  height: 100%;
+  width: 100%;
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.loadingBarActive::after {
   content: "";
   position: absolute;
-  inset: 0;
-  background: var(--accent-color);
-  transform-origin: left;
-  animation: loadingBarSlide 1.2s ease-in-out infinite;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
+  animation: loadingSlide 1.1s ease-in-out infinite;
 }
 
-@keyframes loadingBarSlide {
-  0% {
-    transform: translateX(-100%) scaleX(0.4);
-  }
-  50% {
-    transform: translateX(30%) scaleX(0.6);
-  }
-  100% {
-    transform: translateX(110%) scaleX(0.4);
-  }
+@keyframes loadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
 }
 
+/* Filters & Results Meta Bar */
+.controlsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.filterTabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.filterTab {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  padding: 0.5rem 1.1rem;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.filterTab:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.filterTabActive {
+  background: var(--accent-color) !important;
+  color: white !important;
+  border-color: var(--accent-color) !important;
+  box-shadow: 0 2px 10px var(--accent-glow);
+}
+
+.resultCount {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.resultCount strong {
+  color: var(--text-primary);
+}
+
+/* Fluid responsive poster grid */
 .resultsGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  padding-bottom: 2rem;
-}
-
-@media (min-width: 640px) {
-  .resultsGrid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1.5rem 1.25rem;
+  padding-bottom: 2.5rem;
 }
 
 @media (min-width: 768px) {
   .resultsGrid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(185px, 1fr));
+    gap: 2rem 1.5rem;
   }
 }
 
-@media (min-width: 1024px) {
+@media (max-width: 520px) {
   .resultsGrid {
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: 1.25rem 0.85rem;
   }
 }
 
@@ -122,78 +231,174 @@
   width: 100%;
 }
 
+/* Load more */
 .loadMoreWrap {
   display: flex;
   justify-content: center;
-  padding: 0.5rem 0 4rem;
+  padding: 1rem 0 3rem;
 }
 
 .loadMoreButton {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.75rem;
-  border-radius: var(--border-radius);
+  gap: 0.6rem;
+  padding: 0.75rem 2rem;
+  border-radius: 30px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   font-weight: 600;
   font-size: 0.95rem;
-  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    background 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  transition: all 0.25s ease;
 }
 
 .loadMoreButton:hover {
   border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 0 15px var(--accent-glow);
+  transform: translateY(-2px);
 }
 
-.errorState, .noResults, .emptyState {
-  text-align: center;
-  padding: 4rem 2rem;
-  color: var(--text-secondary);
-}
-
-.errorState {
+/* Discovery / Empty State */
+.discoverySection {
+  margin-top: 1.5rem;
   display: flex;
   flex-direction: column;
+  gap: 3rem;
+}
+
+.discoveryBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.discoveryTitle {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  border-left: 3px solid var(--accent-color);
+  padding-left: 0.6rem;
+  display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 4rem 2rem 5rem;
+  gap: 0.5rem;
+}
+
+.genresGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.85rem;
+}
+
+@media (min-width: 768px) {
+  .genresGrid {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 1rem;
+  }
+}
+
+.genreChip {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.9rem 1.1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: left;
+}
+
+.genreChip:hover {
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 12px var(--accent-glow);
+}
+
+.genreEmoji {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+.popularTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.popularTag {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 0.5rem 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.popularTag:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+/* No Results & Error States */
+.noResults, .errorState {
+  text-align: center;
+  padding: 4rem 1.5rem;
+  color: var(--text-secondary);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  margin-top: 1rem;
+}
+
+.noResultsIcon, .errorIcon {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
 }
 
 .errorIcon {
   color: var(--accent-color);
 }
 
-.errorState h2 {
-  font-size: 1.6rem;
+.noResults h2, .errorState h2 {
+  font-size: 1.4rem;
   color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  font-weight: 700;
 }
 
-.errorState p {
-  max-width: 40ch;
+.noResults p, .errorState p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  max-width: 500px;
+  margin: 0 auto;
 }
 
 .retryButton {
-  margin-top: 0.75rem;
-  padding: 0.75rem 1.75rem;
-  border-radius: var(--border-radius);
+  margin-top: 1.5rem;
+  padding: 0.75rem 2rem;
+  border-radius: 30px;
   background: var(--accent-color);
   color: #fff;
   font-weight: 600;
-  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
 }
 
 .retryButton:hover {
   background: var(--accent-hover);
   box-shadow: 0 0 15px var(--accent-glow);
-}
-
-.emptyState h2 {
-  font-size: 2rem;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
+  transform: translateY(-2px);
 }

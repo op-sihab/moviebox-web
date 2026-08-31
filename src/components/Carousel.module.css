@@ -1,17 +1,17 @@
 .carouselContainer {
-  margin: 3rem 0;
+  margin: 2.75rem 0;
   position: relative;
 }
 
 .carouselTitle {
   font-size: 1.3rem;
-  font-weight: 700;
-  margin-bottom: 1rem;
+  font-weight: 750;
+  margin-bottom: 1.25rem;
   color: var(--text-primary);
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  letter-spacing: -0.01em;
+  gap: 0.65rem;
+  letter-spacing: -0.02em;
 }
 
 .carouselTitle::before {
@@ -20,8 +20,8 @@
   width: 4px;
   height: 1.15em;
   border-radius: 4px;
-  background: linear-gradient(180deg, #8B5CF6 0%, #D946EF 100%);
-  box-shadow: 0 0 12px var(--accent-glow);
+  background: var(--accent-color);
+  box-shadow: 0 0 10px var(--accent-glow);
 }
 
 .wrapper {
@@ -32,10 +32,12 @@
 
 .row {
   display: flex;
-  gap: 1rem;
-  overflow-x: scroll;
+  gap: 1.15rem;
+  overflow-x: auto;
   scrollbar-width: none; /* Firefox */
-  padding: 1rem 0;
+  padding: 1.75rem 0.5rem 2.25rem;
+  margin-top: -1.25rem;
+  margin-bottom: -1.25rem;
   scroll-behavior: smooth;
   scroll-snap-type: x proximity;
   flex: 1;
@@ -53,6 +55,7 @@
   min-width: 160px;
   max-width: 160px;
   scroll-snap-align: start;
+  position: relative;
 }
 
 @media (min-width: 640px) {
@@ -91,19 +94,18 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 4%;
-  min-width: 40px;
-  background: rgba(0, 0, 0, 0.5);
+  width: 48px;
+  background: rgba(8, 9, 12, 0.7);
   color: white;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: all 0.3s ease;
-  backdrop-filter: blur(4px);
+  transition: opacity 0.25s ease, visibility 0.25s ease, background 0.25s ease, transform 0.2s ease;
+  backdrop-filter: blur(8px);
 }
 
 .wrapper:hover .navButton,
@@ -123,22 +125,23 @@
 }
 
 .navButton:hover {
-  background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
+  background: rgba(8, 9, 12, 0.95);
+  color: var(--accent-hover);
 }
 
 .left {
   left: 0;
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
 }
 
 .right {
   right: 0;
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
 }
 
 .hidden {
   display: none;
 }
+

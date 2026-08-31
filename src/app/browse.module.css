@@ -1,6 +1,6 @@
 .main {
   min-height: 100vh;
-  padding: 100px 0 4rem;
+  padding: 100px 0 5rem;
   background-color: var(--bg-primary);
 }
 
@@ -9,13 +9,17 @@
 }
 
 .pageTitle {
-  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  font-size: clamp(1.9rem, 4vw, 2.9rem);
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.025em;
 }
 
 .pageTitle span {
-  color: var(--accent-color);
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .subtitle {
@@ -25,16 +29,27 @@
 }
 
 .section {
-  margin-bottom: 3rem;
+  margin-bottom: 3.25rem;
 }
 
 .sectionTitle {
   font-size: 1.25rem;
   font-weight: 700;
   margin-bottom: 1.25rem;
-  border-left: 3px solid var(--accent-color);
-  padding-left: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  letter-spacing: -0.015em;
   color: var(--text-primary);
+}
+
+.sectionTitle::before {
+  content: "";
+  width: 4px;
+  height: 1.15em;
+  border-radius: 4px;
+  background: var(--gradient-accent);
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 /* Responsive poster grid */
@@ -82,7 +97,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-left: 3px solid var(--accent-color);
-  border-radius: var(--border-radius);
+  border-radius: var(--radius-md);
 }
 
 .errorBanner h2 {
@@ -101,10 +116,9 @@
   background: var(--accent-color);
   color: #fff;
   padding: 0.75rem 1.75rem;
-  border-radius: var(--border-radius);
+  border-radius: 999px;
   font-weight: 600;
-  transition: background 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
 }
 
 .browseLink:hover {

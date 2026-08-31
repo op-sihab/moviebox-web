@@ -1,10 +1,21 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Plus, Check, ThumbsUp, Star, ChevronDown } from "lucide-react";
+import {
+  Play,
+  Plus,
+  Check,
+  Star,
+  ChevronDown,
+  Volume2,
+  ChevronLeft,
+  Film,
+  Sparkles,
+} from "lucide-react";
 import Carousel from "@/components/Carousel";
+import DetailPageSkeleton from "@/components/DetailPageSkeleton";
 import MovieCardSkeleton from "@/components/MovieCardSkeleton";
 import {
   getCachedCore,
@@ -15,6 +26,8 @@ import {
   fetchRecs,
   prefetchDownload,
 } from "@/services/contentCache";
+import { getSeasonEpisodes } from "@/services/tmdb";
+import { buildSeasonMapping } from "@/services/seasonMapper";
 import { img } from "@/services/image";
 import { isInMyList, toggleMyList } from "@/services/mylist";
 
@@ -25,74 +38,39 @@ interface TVClientProps {
 export default function TVClient({ id }: TVClientProps) {
   const [activeId, setActiveId] = useState(id);
   const [retryToken, setRetryToken] = useState(0);
-  const [fetchError, setFetchError] = useState(false);
 
   // Sync prop changes
   useEffect(() => {
     setActiveId(id);
   }, [id]);
 
-  // Keep activeId in sync when the user navigates back/forward after a
-  // manual pushState-based dub switch
-  useEffect(() => {
-    const handlePopState = () => {
-      const match = window.location.pathname.match(/^\/tv\/([^/?#]+)/);
-      if (match && match[1] && decodeURIComponent(match[1]) !== activeId) {
-        setActiveId(decodeURIComponent(match[1]));
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, [activeId]);
-
-  const [movie, setMovie] = useState<any>(null);
-  const [cast, setCast] = useState<any[]>([]);
-  const [dubs, setDubs] = useState<any[]>([]);
-  const [seasonsData, setSeasonsData] = useState<any>(null);
-  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
-  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(null);
+  // Synchronous cache reads for instantaneous transitions
+  const [movie, setMovie] = useState<any>(() => getCachedCore(activeId)?.movie ?? null);
+  const [cast, setCast] = useState<any[]>(() => getCachedCore(activeId)?.cast ?? []);
+  const [dubs, setDubs] = useState<any[]>(() => getCachedCore(activeId)?.dubs ?? []);
+  const [seasonsData, setSeasonsData] = useState<any>(() => getCachedCore(activeId)?.seasons ?? null);
+  const [recommendations, setRecommendations] = useState<any[]>(() => getCachedRecs(activeId) ?? []);
+  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.backdropUrl ?? null);
+  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(() => getCachedTmdb(activeId)?.meta ?? null);
   const [logoReady, setLogoReady] = useState(false);
-  
-  const [recommendations, setRecommendations] = useState<any[]>([]);
-  
-  const [selectedSeason, setSelectedSeason] = useState<number>(1);
+  const [selectedSeason, setSelectedSeason] = useState(1);
   const [episodes, setEpisodes] = useState<any[]>([]);
-  const [episodesLoading, setEpisodesLoading] = useState<boolean>(false);
-  
-  const [loading, setLoading] = useState(true);
-  const [recsLoading, setRecsLoading] = useState(true);
+  const [episodesLoading, setEpisodesLoading] = useState(false);
+  const [loading, setLoading] = useState(() => !getCachedCore(activeId)?.movie);
+  const [recsLoading, setRecsLoading] = useState(() => !getCachedRecs(activeId));
   const [inList, setInList] = useState(false);
-  const [continueRecord, setContinueRecord] = useState<{ season: number; episode: number; progress?: number; duration?: number; } | null>(null);
-  const [episodesProgress, setEpisodesProgress] = useState<Record<string, { progress: number; duration: number }>>({});
+  const [fetchError, setFetchError] = useState(false);
+  const [episodesProgress, setEpisodesProgress] = useState<{ [key: string]: { progress: number; duration: number } }>({});
+  const [continueRecord, setContinueRecord] = useState<{ season: number; episode: number } | null>(null);
 
-  const MIN_SKELETON_MS = 350;
-  const skeletonStartRef = useRef(0);
-
-  const endSkeleton = (apply: () => void) => {
-    const elapsed = Date.now() - skeletonStartRef.current;
-    const wait = Math.max(0, MIN_SKELETON_MS - elapsed);
-    window.setTimeout(() => {
-      apply();
-    }, wait);
-  };
-
-  // Reflect the saved state once we know the show
-  useEffect(() => {
-    if (movie) {
-      setInList(isInMyList({ _id: activeId, id: activeId }));
-    }
-  }, [movie, activeId]);
-
-  // Query localStorage to check if there is an active continue watching record for this series
+  // Continue watching detection
   useEffect(() => {
     try {
       const saved = localStorage.getItem("mbx:continue_watching");
       if (saved) {
         const history = JSON.parse(saved);
-        
-        // Collect all IDs associated with this series across all dubs
         const allIds = new Set<string>();
-        if (activeId) allIds.add(String(activeId));
+        allIds.add(String(activeId));
         if (movie?.subjectId) allIds.add(String(movie.subjectId));
         if (movie?.detailPath) allIds.add(String(movie.detailPath));
         if (dubs) {
@@ -106,79 +84,56 @@ export default function TVClient({ id }: TVClientProps) {
           if (!t) return "";
           return t.replace(/\[[^\]]+\]/g, "").replace(/\([^\)]+\)/g, "").trim().toLowerCase();
         };
-        const currentBaseTitle = getBaseTitle(movie?.title || seasonsData?.title || "");
+        const currentBaseTitle = getBaseTitle(movie?.title || "");
 
-        const record = history.find((item: any) => {
-          if (allIds.has(String(item.id))) return true;
-          if (currentBaseTitle && item.title && item.mediaType === "tv") {
-            return getBaseTitle(item.title) === currentBaseTitle;
+        const progMap: { [key: string]: { progress: number; duration: number } } = {};
+        let latestTvRecord: any = null;
+        let latestTimestamp = 0;
+
+        history.forEach((item: any) => {
+          const idMatches = allIds.has(String(item.id));
+          const titleMatches = currentBaseTitle && item.title && item.mediaType === "tv" && getBaseTitle(item.title) === currentBaseTitle;
+
+          if (idMatches || titleMatches) {
+            if (item.season && item.episode) {
+              progMap[`${item.season}:${item.episode}`] = {
+                progress: item.progress || 0,
+                duration: item.duration || 0,
+              };
+
+              const ts = item.updatedAt || 0;
+              if (ts > latestTimestamp || !latestTvRecord) {
+                latestTimestamp = ts;
+                latestTvRecord = item;
+              }
+            }
           }
-          return false;
         });
 
-        if (record && record.season && record.episode) {
-          setContinueRecord({ 
-            season: record.season, 
-            episode: record.episode,
-            progress: record.progress,
-            duration: record.duration
+        setEpisodesProgress(progMap);
+        if (latestTvRecord && latestTvRecord.season && latestTvRecord.episode) {
+          setContinueRecord({
+            season: latestTvRecord.season,
+            episode: latestTvRecord.episode,
           });
-          setSelectedSeason(record.season);
         } else {
           setContinueRecord(null);
         }
       } else {
+        setEpisodesProgress({});
         setContinueRecord(null);
       }
     } catch (e) {
-      console.error("Failed to load continue watching record in details page", e);
+      console.error("Failed to load continue watching record in TV details page", e);
     }
-  }, [activeId, movie, dubs, seasonsData]);
+  }, [activeId, movie, dubs]);
 
-  // Load and hold playback progress for all episodes of this show
+  // List state
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("mbx:episodes_progress");
-      if (saved) {
-        const history = JSON.parse(saved);
-        
-        // Collect all IDs associated with this series across all dubs
-        const allIds = new Set<string>();
-        if (activeId) allIds.add(String(activeId));
-        if (movie?.subjectId) allIds.add(String(movie.subjectId));
-        if (movie?.detailPath) allIds.add(String(movie.detailPath));
-        if (dubs) {
-          dubs.forEach((d: any) => {
-            if (d.subject_id) allIds.add(String(d.subject_id));
-            if (d.detail_path) allIds.add(String(d.detail_path));
-          });
-        }
-
-        const getBaseTitle = (t: string) => {
-          if (!t) return "";
-          return t.replace(/\[[^\]]+\]/g, "").replace(/\([^\)]+\)/g, "").trim().toLowerCase();
-        };
-        const currentBaseTitle = getBaseTitle(movie?.title || seasonsData?.title || "");
-
-        const map: Record<string, { progress: number; duration: number }> = {};
-        history.forEach((item: any) => {
-          const isMatch = 
-            allIds.has(String(item.id)) || 
-            (currentBaseTitle && item.title && getBaseTitle(item.title) === currentBaseTitle);
-
-          if (isMatch) {
-            const key = `${item.season}:${item.episode}`;
-            map[key] = { progress: item.progress, duration: item.duration };
-          }
-        });
-        setEpisodesProgress(map);
-      } else {
-        setEpisodesProgress({});
-      }
-    } catch (e) {
-      console.error("Failed to load episodes progress in details page", e);
+    if (movie) {
+      setInList(isInMyList({ _id: activeId, id: activeId }));
     }
-  }, [activeId, movie, dubs, seasonsData]);
+  }, [movie, activeId]);
 
   const handleToggleList = () => {
     if (!movie) return;
@@ -194,18 +149,13 @@ export default function TVClient({ id }: TVClientProps) {
     setInList(nowIn);
   };
 
-  // 1. Core Metadata Fetching & Caching
+  // Core metadata fetching
   useEffect(() => {
     let active = true;
 
-    // Re-sync from cache on activeId change
     const core = getCachedCore(activeId);
     const tmdb = getCachedTmdb(activeId);
     const recs = getCachedRecs(activeId);
-
-    if (!core) {
-      skeletonStartRef.current = Date.now();
-    }
 
     if (core) {
       setMovie(core.movie);
@@ -215,9 +165,9 @@ export default function TVClient({ id }: TVClientProps) {
       if (core.seasons?.seasons?.[0]?.season) {
         setSelectedSeason(core.seasons.seasons[0].season);
       }
-      endSkeleton(() => {
-        if (active) setLoading(false);
-      });
+      if (active) setLoading(false);
+    } else {
+      setLoading(true);
     }
     if (tmdb) {
       setTmdbBackdropUrl(tmdb.backdropUrl ?? null);
@@ -231,7 +181,7 @@ export default function TVClient({ id }: TVClientProps) {
       setRecsLoading(true);
     }
 
-    // CRITICAL PATH: MovieBox details only — render the instant these resolve.
+    // CRITICAL PATH
     fetchCore(activeId)
       .then((data) => {
         if (!active) return;
@@ -243,11 +193,8 @@ export default function TVClient({ id }: TVClientProps) {
           setSelectedSeason(data.seasons.seasons[0].season);
         }
         setFetchError(false);
-        endSkeleton(() => {
-          if (active) setLoading(false);
-        });
+        setLoading(false);
 
-        // NON-BLOCKING: TMDB backdrop/logo/meta swaps in (and feeds episode enrichment) when ready.
         if (data.movie?.title) {
           fetchTmdb(activeId, "tv", data.movie.title)
             .then((enr) => {
@@ -262,16 +209,12 @@ export default function TVClient({ id }: TVClientProps) {
       .catch((err) => {
         console.error("Failed to load details", err);
         if (active) {
-          endSkeleton(() => {
-            if (active) {
-              setFetchError(true);
-              setLoading(false);
-            }
-          });
+          setFetchError(true);
+          setLoading(false);
         }
       });
 
-    // NON-CRITICAL: recommendations
+    // Recommendations
     fetchRecs(activeId)
       .then((mapped) => {
         if (!active) return;
@@ -286,52 +229,78 @@ export default function TVClient({ id }: TVClientProps) {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, retryToken]);
 
-  // 3. Load rich season episodes metadata from TMDB when selectedSeason or tmdbShowMeta changes
+  const seasonMapping = useMemo(() => {
+    return buildSeasonMapping(seasonsData, tmdbShowMeta?.seasons);
+  }, [seasonsData, tmdbShowMeta?.seasons]);
+
+  // Load season episodes
   useEffect(() => {
     if (!movie) return;
-
     let active = true;
-    const loadEpisodes = async () => {
+
+    if (tmdbShowMeta?.id) {
       setEpisodesLoading(true);
-      try {
-        if (tmdbShowMeta?.id) {
-          const { getSeasonEpisodes } = await import("@/services/tmdb");
-          const eps = await getSeasonEpisodes(tmdbShowMeta.id, selectedSeason);
+      getSeasonEpisodes(tmdbShowMeta.id, selectedSeason)
+        .then((data) => {
           if (!active) return;
-          setEpisodes(eps);
-        } else {
+          setEpisodes(data || []);
+          setEpisodesLoading(false);
+        })
+        .catch(() => {
           if (!active) return;
           setEpisodes([]);
-        }
-      } catch (err) {
-        console.error("Failed to load TMDB season episodes", err);
-        if (!active) return;
-        setEpisodes([]);
-      } finally {
-        if (active) setEpisodesLoading(false);
-      }
-    };
+          setEpisodesLoading(false);
+        });
+    } else {
+      setEpisodes([]);
+      setEpisodesLoading(false);
+    }
 
-    loadEpisodes();
     return () => {
       active = false;
     };
-  }, [selectedSeason, tmdbShowMeta, movie]);
+  }, [movie, selectedSeason, tmdbShowMeta?.id]);
 
-  // 4. Enrich local episodes with TMDB metadata
   const currentSeasonInfo = useMemo(() => {
-    if (!seasonsData?.seasons) return null;
-    return seasonsData.seasons.find((s: any) => s.season === selectedSeason);
-  }, [seasonsData, selectedSeason]);
+    return seasonMapping.mappedSeasons.find((s) => s.season === selectedSeason) || null;
+  }, [seasonMapping.mappedSeasons, selectedSeason]);
+
+  const displayedCast = useMemo(() => {
+    const mbxActors = (cast || []).filter((c: any) => {
+      const char = (c.character || "").toLowerCase();
+      const isActorRole = !/director|writer|author|editor|producer|composer/i.test(char);
+      const hasAvatar = !!c.avatarUrl;
+      return isActorRole && hasAvatar;
+    });
+
+    if (mbxActors.length >= 3) {
+      return mbxActors;
+    }
+
+    if (tmdbShowMeta?.cast && tmdbShowMeta.cast.length > 0) {
+      return tmdbShowMeta.cast;
+    }
+
+    if (mbxActors.length > 0) {
+      return mbxActors;
+    }
+
+    const anyActors = (cast || []).filter((c: any) => {
+      return !/director|writer|author|editor|producer|composer/i.test(c.character || "");
+    });
+
+    return anyActors.length > 0 ? anyActors : cast || [];
+  }, [cast, tmdbShowMeta?.cast]);
 
   const enrichedEpisodes = useMemo(() => {
     const count = currentSeasonInfo?.episode_count || 0;
     return Array.from({ length: count }, (_, index) => {
       const epNum = index + 1;
-      const tmdbEp = episodes.find((e: any) => e.episode_number === epNum);
+      const tmdbEp =
+        episodes[index] ||
+        episodes.find((e: any) => e.episode_number === epNum);
       return {
         episode_number: epNum,
         name: tmdbEp?.name || `Episode ${epNum}`,
@@ -343,76 +312,8 @@ export default function TVClient({ id }: TVClientProps) {
     });
   }, [currentSeasonInfo, episodes, movie]);
 
-  // Loading / Skeleton State (100% matched to page layout to prevent layout shift)
   if (loading) {
-    return (
-      <div className={styles.main}>
-        {/* Backdrop Skeleton */}
-        <div className={styles.backdropContainer}>
-          <div className="skeleton" style={{ width: "100%", height: "100%" }} />
-          <div className={styles.backdropGradient}></div>
-        </div>
-
-        <div className={`container ${styles.contentWrapper}`}>
-          <div className={styles.mainContent}>
-            {/* Poster Column Skeleton */}
-            <div className={styles.posterColumn}>
-              <div className={`${styles.poster} skeleton`} style={{ border: "none" }} />
-            </div>
-            
-            {/* Info Column Skeleton */}
-            <div className={styles.infoColumn}>
-              {/* Title Skeleton */}
-              <div className="skeleton" style={{ height: "3.5rem", width: "70%", marginBottom: "1.5rem", borderRadius: "10px" }} />
-              
-              {/* Meta Row Skeleton */}
-              <div className={styles.metaRow} style={{ gap: "1rem" }}>
-                <div className="skeleton" style={{ height: "1.3rem", width: "80px", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.3rem", width: "60px", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.3rem", width: "50px", borderRadius: "6px" }} />
-              </div>
-              
-              {/* Genres Skeleton */}
-              <div className={styles.genres} style={{ gap: "0.75rem", marginBottom: "2rem" }}>
-                <div className="skeleton" style={{ height: "2rem", width: "100px", borderRadius: "20px" }} />
-                <div className="skeleton" style={{ height: "2rem", width: "120px", borderRadius: "20px" }} />
-                <div className="skeleton" style={{ height: "2rem", width: "80px", borderRadius: "20px" }} />
-              </div>
-              
-              {/* Description Skeleton */}
-              <div style={{ marginBottom: "2.5rem" }}>
-                <div className="skeleton" style={{ height: "1.1rem", width: "100%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "95%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-                <div className="skeleton" style={{ height: "1.1rem", width: "70%", marginBottom: "0.75rem", borderRadius: "6px" }} />
-              </div>
-              
-              {/* Action Buttons Skeleton */}
-              <div className={styles.actionButtons} style={{ gap: "1rem", marginBottom: "3rem" }}>
-                <div className="skeleton" style={{ height: "3.2rem", width: "160px", borderRadius: "8px" }} />
-                <div className="skeleton" style={{ height: "3.2rem", width: "48px", borderRadius: "50%" }} />
-                <div className="skeleton" style={{ height: "3.2rem", width: "48px", borderRadius: "50%" }} />
-              </div>
-              
-              {/* Cast Skeleton */}
-              <div className={styles.castSection}>
-                <div className="skeleton" style={{ height: "2rem", width: "120px", marginBottom: "1.5rem", borderRadius: "6px" }} />
-                <div className={styles.castList} style={{ gap: "1.5rem" }}>
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className={styles.castMember} style={{ background: "rgba(255, 255, 255, 0.02)", border: "none" }}>
-                      <div className="skeleton" style={{ width: "60px", height: "60px", borderRadius: "50%", flexShrink: 0 }} />
-                      <div className={styles.castInfo} style={{ gap: "0.5rem" }}>
-                        <div className="skeleton" style={{ height: "1rem", width: "80px", borderRadius: "4px" }} />
-                        <div className="skeleton" style={{ height: "0.85rem", width: "60px", borderRadius: "4px" }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (!movie) {
@@ -422,11 +323,9 @@ export default function TVClient({ id }: TVClientProps) {
           <h1>{fetchError ? "Something went wrong" : "TV Show not found"}</h1>
           {fetchError && (
             <button
-              className={styles.playButton}
-              style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}
+              className={styles.playPillButton}
               onClick={() => {
                 setFetchError(false);
-                skeletonStartRef.current = Date.now();
                 setLoading(true);
                 setRetryToken((t) => t + 1);
               }}
@@ -434,7 +333,7 @@ export default function TVClient({ id }: TVClientProps) {
               Try Again
             </button>
           )}
-          <Link href="/" className={styles.playButton} style={{ marginTop: "2rem", background: "var(--accent-color)", color: "white" }}>
+          <Link href="/" className={styles.playPillButton}>
             Back to Home
           </Link>
         </div>
@@ -443,34 +342,39 @@ export default function TVClient({ id }: TVClientProps) {
   }
 
   const bgImage = tmdbBackdropUrl || movie.cover?.url;
+  const totalEpsCount = movie.totalEpisodes || seasonMapping.mappedSeasons.reduce((acc, s) => acc + s.episode_count, 0);
 
   return (
     <div className={styles.main}>
-      <div className={styles.backdropContainer}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={img.backdrop(bgImage)}
-          alt={movie.title}
-          className={styles.backdropImage}
-          style={tmdbBackdropUrl ? { filter: "none", opacity: 0.35 } : undefined}
-        />
-        <div className={styles.backdropGradient}></div>
-      </div>
+      {/* 1. IMMERSIVE HERO SHOWCASE */}
+      <section className={styles.heroStage}>
+        {/* Top-Left Floating Back Button */}
+        <button
+          onClick={() => window.history.back()}
+          className={styles.backButton}
+          aria-label="Go Back"
+          title="Back"
+        >
+          <ChevronLeft size={22} />
+        </button>
 
-      <div className={`container ${styles.contentWrapper}`}>
-        <div className={styles.mainContent}>
-          <div className={styles.posterColumn}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={img.poster(movie.cover?.url)}
-              alt={movie.title}
-              className={styles.poster}
-            />
-          </div>
-          
-          <div className={styles.infoColumn}>
+        <div className={styles.backdropContainer}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img.backdrop(bgImage)}
+            alt={movie.title}
+            className={styles.backdropImage}
+            fetchPriority="high"
+            decoding="async"
+          />
+          <div className={styles.backdropGradient} />
+        </div>
+
+        <div className={`container ${styles.heroContentWrapper}`}>
+          <div className={styles.heroContent}>
+            {/* Title Logo or Typographic Headline */}
             {!tmdbShowMeta?.logo_url ? (
-              <h1 className={styles.title}>{movie.title}</h1>
+              <h1 className={styles.heroTitle}>{movie.title}</h1>
             ) : (
               <div className={`${styles.logoContainer} ${logoReady ? styles.logoVisible : ""}`}>
                 {!logoReady && <div className={`${styles.logoSkeleton} skeleton`} />}
@@ -483,36 +387,55 @@ export default function TVClient({ id }: TVClientProps) {
                 />
               </div>
             )}
-            
-            <div className={styles.metaRow}>
+
+            {/* Minimalist Inline Meta Line (Red Star • Year • Seasons • Episodes • Genres) */}
+            <div className={styles.heroMetaLine}>
               {movie.imdbRatingValue && (
-                <span className={styles.rating}>
-                  <Star fill="#fbbf24" color="#fbbf24" size={16} />
-                  {movie.imdbRatingValue}
+                <span className={styles.ratingInline}>
+                  <Star size={14} fill="#e50914" color="#e50914" />
+                  <strong className={styles.ratingVal}>{movie.imdbRatingValue}</strong>
                 </span>
               )}
-              {movie.releaseDate && <span>{movie.releaseDate.split("-")[0]}</span>}
-              {seasonsData?.total_episodes && <span>{seasonsData.total_episodes} Episodes</span>}
-              <span className={styles.hdBadge}>HD</span>
+              {movie.releaseDate && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span>{movie.releaseDate.split("-")[0]}</span>
+                </>
+              )}
+              <span className={styles.dotSep}>•</span>
+              <span>{seasonMapping.mappedSeasons.length} {seasonMapping.mappedSeasons.length === 1 ? "Season" : "Seasons"}</span>
+              {totalEpsCount > 0 && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span>{totalEpsCount} Episodes</span>
+                </>
+              )}
+              {movie.genre && (
+                <>
+                  <span className={styles.dotSep}>•</span>
+                  <span style={{ color: "#94a3b8" }}>
+                    {movie.genre.split(",").slice(0, 3).map((g: string) => g.trim()).join(" • ")}
+                  </span>
+                </>
+              )}
             </div>
-            
-            {movie.genre && (
-              <div className={styles.genres}>
-                {movie.genre.split(",").map((g: string, gi: number) => (
-                  <span key={`${g}-${gi}`} className={styles.genreTag}>{g.trim()}</span>
-                ))}
-              </div>
+
+            {/* Short Plot Logline */}
+            {movie.description && (
+              <p className={styles.heroOverview}>{movie.description}</p>
             )}
-            
-            <p className={styles.description}>{tmdbShowMeta?.overview || movie.description}</p>
-            
+
+            {/* Audio Dub Selector */}
             {dubs && dubs.length > 1 && (
               <div className={styles.dubsContainer}>
-                <span className={styles.dubsLabel}>Audio / Dubbing:</span>
+                <div className={styles.dubsHeader}>
+                  <Volume2 size={14} />
+                  <span>Available Audio Dubs</span>
+                </div>
                 <div className={styles.dubsList}>
                   {dubs.map((d: any, di: number) => {
-                    const isCurrent = 
-                      String(d.subject_id) === String(activeId) || 
+                    const isCurrent =
+                      String(d.subject_id) === String(activeId) ||
                       String(d.detail_path) === String(activeId) ||
                       String(d.subject_id) === String(movie?.subjectId) ||
                       String(d.detail_path) === String(movie?.detailPath);
@@ -532,110 +455,145 @@ export default function TVClient({ id }: TVClientProps) {
                 </div>
               </div>
             )}
-            
+
+            {/* Primary Action Buttons Bar */}
             <div className={styles.actionButtons}>
               {continueRecord ? (
                 <Link
                   href={`/watch/${activeId}?season=${continueRecord.season}&episode=${continueRecord.episode}`}
-                  className={styles.playButton}
-                  onMouseEnter={() => prefetchDownload(activeId, continueRecord.season, continueRecord.episode)}
-                  onTouchStart={() => prefetchDownload(activeId, continueRecord.season, continueRecord.episode)}
+                  className={styles.playPillButton}
+                  onMouseEnter={() => {
+                    const b = seasonMapping.mapUiToBackend(continueRecord.season, continueRecord.episode);
+                    prefetchDownload(activeId, b.mbxSeason, b.mbxEpisode);
+                  }}
+                  onTouchStart={() => {
+                    const b = seasonMapping.mapUiToBackend(continueRecord.season, continueRecord.episode);
+                    prefetchDownload(activeId, b.mbxSeason, b.mbxEpisode);
+                  }}
                 >
-                  <Play fill="black" size={24} />
+                  <Play fill="currentColor" size={19} />
                   <span>Resume S{continueRecord.season} • E{continueRecord.episode}</span>
                 </Link>
               ) : (
                 <Link
                   href={`/watch/${activeId}?season=${selectedSeason}&episode=1`}
-                  className={styles.playButton}
-                  onMouseEnter={() => prefetchDownload(activeId, selectedSeason, 1)}
-                  onTouchStart={() => prefetchDownload(activeId, selectedSeason, 1)}
+                  className={styles.playPillButton}
+                  onMouseEnter={() => {
+                    const b = seasonMapping.mapUiToBackend(selectedSeason, 1);
+                    prefetchDownload(activeId, b.mbxSeason, b.mbxEpisode);
+                  }}
+                  onTouchStart={() => {
+                    const b = seasonMapping.mapUiToBackend(selectedSeason, 1);
+                    prefetchDownload(activeId, b.mbxSeason, b.mbxEpisode);
+                  }}
                 >
-                  <Play fill="black" size={24} />
-                  <span>Play Season {selectedSeason}</span>
+                  <Play fill="currentColor" size={19} />
+                  <span>Play S{selectedSeason} • E1</span>
                 </Link>
               )}
+
+              {/* Circular Watchlist Button */}
               <button
-                className={styles.iconButton}
+                className={`${styles.circleWatchlistBtn} ${inList ? styles.circleWatchlistBtnActive : ""}`}
                 onClick={handleToggleList}
                 title={inList ? "Remove from My List" : "Add to My List"}
+                aria-label={inList ? "In Watchlist" : "Add to Watchlist"}
               >
-                {inList ? <Check size={24} /> : <Plus size={24} />}
+                {inList ? <Check size={20} /> : <Plus size={20} />}
               </button>
-              <button className={styles.iconButton}>
-                <ThumbsUp size={24} />
+
+              {/* Episodes Scroll Button */}
+              <button
+                className={styles.pillActionBtn}
+                onClick={() => {
+                  document.getElementById("episodes")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                title="Browse Episodes"
+              >
+                <Film size={16} />
+                <span>Episodes</span>
+              </button>
+
+              {/* Similars Scroll Button */}
+              <button
+                className={styles.pillActionBtn}
+                onClick={() => {
+                  document.getElementById("recommendations")?.scrollIntoView({ behavior: "smooth" });
+                }}
+                title="Explore Similar Shows"
+              >
+                <Sparkles size={16} />
+                <span>Similars</span>
               </button>
             </div>
-            
-            {cast.length > 0 && (
-              <div className={styles.castSection}>
-                <h3>Cast</h3>
-                <div className={styles.castList}>
-                  {cast.slice(0, 5).map((star: any, cIdx: number) => (
-                    <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castMember}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={star.avatarUrl ? img.avatar(star.avatarUrl) : "/placeholder.png"} 
-                        alt={star.name} 
-                        className={styles.castAvatar}
-                      />
-                      <div className={styles.castInfo}>
-                        <span className={styles.castName}>{star.name}</span>
-                        <span className={styles.castRole}>{star.character}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          </div>
+        </div>
+      </section>
 
+      {/* 2. MODERN DETAILS HUB (EPISODES CATALOG, STORYLINE, CAST, SPECS) */}
+      <div className={`container ${styles.detailsHub}`}>
+        <div className={styles.hubGrid}>
+          {/* Main Content Area */}
+          <div className={styles.hubMain}>
             {/* Netflix-Style Season & Episode Catalog */}
-            {seasonsData?.seasons && (
-              <div className={styles.episodesSection}>
+            {seasonMapping.mappedSeasons.length > 0 && (
+              <div id="episodes" className={styles.episodesSection}>
                 <div className={styles.episodesHeader}>
-                  <h3>Episodes</h3>
-                  {seasonsData.seasons.length > 1 && (
+                  <div className={styles.episodesHeaderLeft}>
+                    <h3 className={styles.hubSectionTitle}>Episodes</h3>
+                    <span className={styles.seasonSummaryPill}>
+                      {currentSeasonInfo?.name || `Season ${selectedSeason}`} • {currentSeasonInfo?.episode_count || 0} Episodes
+                    </span>
+                  </div>
+
+                  {seasonMapping.mappedSeasons.length > 1 && (
                     <div className={styles.seasonSelectorWrapper}>
                       <select
                         value={selectedSeason}
                         onChange={(e) => setSelectedSeason(parseInt(e.target.value))}
                         className={styles.seasonSelect}
+                        aria-label="Select season"
                       >
-                        {seasonsData.seasons.map((s: any) => (
+                        {seasonMapping.mappedSeasons.map((s) => (
                           <option key={s.season} value={s.season}>
-                            Season {s.season} ({s.episode_count} Episodes)
+                            {s.name} ({s.episode_count} Episodes)
                           </option>
                         ))}
                       </select>
-                      <ChevronDown size={18} className={styles.dropdownIcon} />
+                      <ChevronDown size={16} className={styles.dropdownIcon} />
                     </div>
                   )}
                 </div>
 
                 <div className={styles.episodesList}>
-                  {episodesLoading ? (
-                    <>
+                  {episodesLoading && enrichedEpisodes.length === 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
                       {[1, 2, 3].map((i) => (
-                        <div key={i} style={{ display: "flex", gap: "0.9rem", marginBottom: "0.9rem" }}>
-                          <div className="skeleton" style={{ width: "170px", aspectRatio: "16/9", borderRadius: "8px", flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <div className="skeleton" style={{ height: "1rem", width: "60%", marginBottom: "0.6rem", borderRadius: "4px" }} />
-                            <div className="skeleton" style={{ height: "0.85rem", width: "100%", marginBottom: "0.4rem", borderRadius: "4px" }} />
-                            <div className="skeleton" style={{ height: "0.85rem", width: "85%", borderRadius: "4px" }} />
+                        <div key={i} className={styles.episodeCard} style={{ pointerEvents: "none" }}>
+                          <div className={styles.episodeStillContainer}>
+                            <div className="skeleton" style={{ width: "100%", height: "100%" }} />
+                          </div>
+                          <div className={styles.episodeDetails} style={{ gap: "0.6rem" }}>
+                            <div className="skeleton" style={{ height: 18, width: "55%", borderRadius: 4 }} />
+                            <div className="skeleton" style={{ height: 14, width: "85%", borderRadius: 4 }} />
+                            <div className="skeleton" style={{ height: 14, width: "65%", borderRadius: 4 }} />
                           </div>
                         </div>
                       ))}
-                    </>
-                  ) : enrichedEpisodes.length > 0 ? (
+                    </div>
+                  ) : (
                     enrichedEpisodes.map((ep) => {
-                      const fallbackStill = tmdbBackdropUrl || movie.cover?.url || "/placeholder.png";
-                      const stillSrc = img.still(ep.still_path || fallbackStill);
+                      const progressInfo = episodesProgress[`${selectedSeason}:${ep.episode_number}`];
+                      const backendCoords = seasonMapping.mapUiToBackend(selectedSeason, ep.episode_number);
+                      const stillSrc = ep.still_path ? img.still(ep.still_path) : img.still(movie.cover?.url);
+
                       return (
                         <Link
-                          key={ep.episode_number}
+                          key={`ep-${selectedSeason}-${ep.episode_number}`}
                           href={`/watch/${activeId}?season=${selectedSeason}&episode=${ep.episode_number}`}
                           className={styles.episodeCard}
-                          onMouseEnter={() => prefetchDownload(activeId, selectedSeason, ep.episode_number)}
+                          onMouseEnter={() => prefetchDownload(activeId, backendCoords.mbxSeason, backendCoords.mbxEpisode)}
+                          onTouchStart={() => prefetchDownload(activeId, backendCoords.mbxSeason, backendCoords.mbxEpisode)}
                         >
                           <div className={styles.episodeStillContainer}>
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -646,58 +604,156 @@ export default function TVClient({ id }: TVClientProps) {
                               loading="lazy"
                             />
                             <div className={styles.episodePlayOverlay}>
-                              <Play fill="white" size={24} color="white" />
+                              <div className={styles.episodePlayBtn}>
+                                <Play fill="currentColor" size={20} />
+                              </div>
                             </div>
-                            <span className={styles.episodeNum}>{ep.episode_number}</span>
-                            {(() => {
-                              const progressInfo = episodesProgress[`${selectedSeason}:${ep.episode_number}`];
-                              if (progressInfo && progressInfo.progress && progressInfo.duration) {
-                                return (
-                                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "4px", backgroundColor: "rgba(255,255,255,0.2)", zIndex: 10 }}>
-                                    <div style={{ width: `${(progressInfo.progress / progressInfo.duration) * 100}%`, height: "100%", backgroundColor: "var(--accent-color)" }} />
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })()}
+                            <span className={styles.episodeNum}>EP {ep.episode_number}</span>
+                            {progressInfo && progressInfo.progress > 0 && progressInfo.duration > 0 && (
+                              <div className={styles.episodeProgress}>
+                                <div
+                                  className={styles.episodeProgressFill}
+                                  style={{ width: `${(progressInfo.progress / progressInfo.duration) * 100}%` }}
+                                />
+                              </div>
+                            )}
                           </div>
+
                           <div className={styles.episodeDetails}>
                             <div className={styles.episodeMetaRow}>
-                              <span className={styles.episodeTitle}>{ep.name}</span>
-                              {ep.runtime && (
-                                <span className={styles.episodeRuntime}>{ep.runtime}m</span>
-                              )}
+                              <h4 className={styles.episodeTitle}>
+                                {ep.episode_number}. {ep.name}
+                              </h4>
+                              {ep.runtime && <span className={styles.episodeRuntime}>{ep.runtime}m</span>}
                             </div>
                             <p className={styles.episodeOverview}>{ep.overview}</p>
                           </div>
                         </Link>
                       );
                     })
-                  ) : (
-                    <p style={{ color: "var(--text-secondary)", textAlign: "center", padding: "2rem" }}>No episodes found.</p>
                   )}
                 </div>
               </div>
             )}
+
+            {/* Storyline Card */}
+            <div className={styles.storylineCard}>
+              <h3 className={styles.hubSectionTitle}>Storyline</h3>
+              <p className={styles.storylineText}>{movie.description || "No synopsis available."}</p>
+            </div>
+
+            {/* Top Billed Cast Rail */}
+            {displayedCast.length > 0 && (
+              <div className={styles.castSection}>
+                <h3 className={styles.hubSectionTitle}>Top Billed Cast</h3>
+                <div className={styles.castGrid}>
+                  {displayedCast.slice(0, 10).map((star: any, cIdx: number) => {
+                    const avatarSrc = star.avatarUrl ? img.avatar(star.avatarUrl) : null;
+                    return (
+                      <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castCard}>
+                        <div className={styles.castAvatarWrapper}>
+                          {avatarSrc ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={avatarSrc}
+                              alt={star.name}
+                              className={styles.castAvatarImg}
+                              loading="lazy"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = "none";
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={styles.castAvatarFallback}
+                            style={{ display: avatarSrc ? "none" : "flex" }}
+                          >
+                            {star.name ? star.name.charAt(0).toUpperCase() : "★"}
+                          </div>
+                        </div>
+
+                        <div className={styles.castCardInfo}>
+                          <span className={styles.castNameText}>{star.name}</span>
+                          <span className={styles.castRoleText}>{star.character || "Cast"}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Right Info Specs Rail */}
+          <aside className={styles.hubSidebar}>
+            <div className={styles.specsCard}>
+              <h4 className={styles.specsTitle}>Show Information</h4>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>First Aired</span>
+                <span className={styles.specValue}>{movie.releaseDate || "Unknown"}</span>
+              </div>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Seasons</span>
+                <span className={styles.specValue}>{seasonMapping.mappedSeasons.length}</span>
+              </div>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Total Episodes</span>
+                <span className={styles.specValue}>{totalEpsCount}</span>
+              </div>
+
+              {movie.countryName && (
+                <div className={styles.specItem}>
+                  <span className={styles.specLabel}>Origin</span>
+                  <span className={styles.specValue}>{movie.countryName}</span>
+                </div>
+              )}
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Quality</span>
+                <span className={styles.specValue}>4K Ultra HD • HDR</span>
+              </div>
+
+              <div className={styles.specItem}>
+                <span className={styles.specLabel}>Audio</span>
+                <span className={styles.specValue}>Dolby Atmos 5.1</span>
+              </div>
+
+              {movie.subtitles && (
+                <div className={styles.specItem}>
+                  <span className={styles.specLabel}>Subtitles</span>
+                  <span className={styles.specSubtitles}>
+                    {movie.subtitles.split(",").slice(0, 6).join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </aside>
         </div>
 
-        {recsLoading ? (
-          <div className={styles.recommendations}>
-            <h3 style={{ fontSize: "1.2rem", fontWeight: "600", borderLeft: "3px solid var(--accent-color)", paddingLeft: "0.5rem", marginBottom: "1.5rem", color: "var(--text-primary)" }}>More Like This</h3>
-            <div style={{ display: "flex", gap: "1.25rem", overflow: "hidden" }}>
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} style={{ width: "180px", flexShrink: 0 }}>
-                  <MovieCardSkeleton />
-                </div>
-              ))}
+        {/* 3. RECOMMENDATIONS SECTION */}
+        <div id="recommendations">
+          {recsLoading && recommendations.length === 0 ? (
+            <div className={styles.recommendations}>
+              <h3 className={styles.hubSectionTitle}>More Like This</h3>
+              <div className={styles.recsSkeletonRow}>
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className={styles.recsSkeletonItem}>
+                    <MovieCardSkeleton />
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ) : recommendations.length > 0 ? (
-          <div className={styles.recommendations}>
-            <Carousel title="More Like This" movies={recommendations} />
-          </div>
-        ) : null}
+          ) : recommendations.length > 0 ? (
+            <div className={styles.recommendations}>
+              <Carousel title="More Like This" movies={recommendations} />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

@@ -10,9 +10,12 @@ import BrandIntro from "@/components/BrandIntro";
 import {
   getCachedCore,
   getCachedDownload,
+  getCachedTmdb,
   fetchCore,
   fetchDownload,
+  fetchTmdb,
 } from "@/services/contentCache";
+import { buildSeasonMapping } from "@/services/seasonMapper";
 
 interface WatchClientProps {
   id: string;
@@ -28,6 +31,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   // first client render always match, avoiding hydration mismatches.
   const [movie, setMovie] = useState<any>(null);
   const [seasonsData, setSeasonsData] = useState<any>(null);
+  const [tmdbMeta, setTmdbMeta] = useState<any>(null);
   const [dubs, setDubs] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(true);
 
@@ -53,15 +57,30 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     setCurrentEpisode(initialEpisode);
   }, [initialSeason, initialEpisode]);
 
+  const seasonMapping = useMemo(() => {
+    return buildSeasonMapping(seasonsData, tmdbMeta?.seasons);
+  }, [seasonsData, tmdbMeta?.seasons]);
+
   // 1. Load core details (movie + seasons) from the warm cache or network
   useEffect(() => {
     let active = true;
     const core = getCachedCore(id);
+    const cachedTmdb = getCachedTmdb(id);
+    if (cachedTmdb?.meta) {
+      setTmdbMeta(cachedTmdb.meta);
+    }
     if (core) {
       setMovie(core.movie);
       setSeasonsData(core.seasons);
       setDubs(core.dubs || []);
       setDetailsLoading(false);
+      if (core.movie?.title && !cachedTmdb?.meta) {
+        fetchTmdb(id, "tv", core.movie.title)
+          .then((res) => {
+            if (active && res?.meta) setTmdbMeta(res.meta);
+          })
+          .catch(() => {});
+      }
     } else {
       setDetailsLoading(true);
       fetchCore(id)
@@ -70,6 +89,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           setMovie(data.movie);
           setSeasonsData(data.seasons);
           setDubs(data.dubs || []);
+          if (data.movie?.title) {
+            fetchTmdb(id, "tv", data.movie.title)
+              .then((res) => {
+                if (active && res?.meta) setTmdbMeta(res.meta);
+              })
+              .catch(() => {});
+          }
         })
         .catch((err) => console.error("Failed to load details", err))
         .finally(() => {
@@ -80,6 +106,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       active = false;
     };
   }, [id]);
+
   // Sync selectedFile when files change (e.g. changing episode)
   useEffect(() => {
     const defaultFile = files.find((f: any) => f.resolution === "720p") || files[0] || null;
@@ -93,8 +120,11 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     if (detailsLoading || !movie) return;
 
     let active = true;
-    const s = isSeries ? currentSeason : 0;
-    const e = isSeries ? currentEpisode : 0;
+    const backendCoords = isSeries
+      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
+      : { mbxSeason: 0, mbxEpisode: 0 };
+    const s = backendCoords.mbxSeason;
+    const e = backendCoords.mbxEpisode;
 
     const cached = getCachedDownload(id, s, e);
     if (cached) {
@@ -117,32 +147,33 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSeason, currentEpisode, id, isSeries, detailsLoading, movie]);
+  }, [currentSeason, currentEpisode, id, isSeries, detailsLoading, movie, seasonMapping]);
 
   // Determine the next episode (within or across seasons)
   const nextEp = useMemo(() => {
-    if (!isSeries || !seasonsData?.seasons) return null;
+    if (!isSeries || !seasonMapping.mappedSeasons.length) return null;
 
-    const currentSeasonData = seasonsData.seasons.find((s: any) => s.season === currentSeason);
+    const currentSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason);
     if (!currentSeasonData) return null;
 
     if (currentEpisode < currentSeasonData.episode_count) {
       return { season: currentSeason, episode: currentEpisode + 1 };
     } else {
-      const nextSeasonData = seasonsData.seasons.find((s: any) => s.season === currentSeason + 1);
+      const nextSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason + 1);
       if (nextSeasonData && nextSeasonData.episode_count > 0) {
         return { season: currentSeason + 1, episode: 1 };
       }
     }
     return null;
-  }, [isSeries, seasonsData, currentSeason, currentEpisode]);
+  }, [isSeries, seasonMapping, currentSeason, currentEpisode]);
 
   // Prefetch the next episode's stream links so "Next" is instant
   useEffect(() => {
     if (isSeries && nextEp) {
-      fetchDownload(id, nextEp.season, nextEp.episode).catch(() => {});
+      const backend = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
+      fetchDownload(id, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
     }
-  }, [isSeries, nextEp, id]);
+  }, [isSeries, nextEp, id, seasonMapping]);
 
   // Load TMDB episode metadata
   useEffect(() => {
@@ -152,17 +183,26 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const loadTMDBData = async () => {
       try {
         const { searchTVShow, getSeasonEpisodes } = await import("@/services/tmdb");
-        const meta = await searchTVShow(movie.title);
+        const meta = tmdbMeta || (await searchTVShow(movie.title));
         if (!active || !meta?.id) return;
 
-        const currentEps = await getSeasonEpisodes(meta.id, currentSeason);
-        if (!active) return;
-        setCurrentSeasonEpisodes(currentEps);
+        const targetTmdbSeason = seasonMapping.getTmdbSeason(currentSeason);
+        if (targetTmdbSeason !== null) {
+          const currentEps = await getSeasonEpisodes(meta.id, targetTmdbSeason);
+          if (!active) return;
+          setCurrentSeasonEpisodes(currentEps);
+        } else {
+          if (!active) return;
+          setCurrentSeasonEpisodes([]);
+        }
 
         if (nextEp && nextEp.season !== currentSeason) {
-          const nextEps = await getSeasonEpisodes(meta.id, nextEp.season);
-          if (!active) return;
-          setNextSeasonEpisodes(nextEps);
+          const nextTargetTmdbSeason = seasonMapping.getTmdbSeason(nextEp.season);
+          if (nextTargetTmdbSeason !== null) {
+            const nextEps = await getSeasonEpisodes(meta.id, nextTargetTmdbSeason);
+            if (!active) return;
+            setNextSeasonEpisodes(nextEps);
+          }
         }
       } catch (err) {
         console.error("Watch page TMDB metadata fetch failed:", err);
@@ -174,30 +214,41 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSeason, movie?.title, isSeries]);
+  }, [currentSeason, movie?.title, isSeries, seasonMapping, tmdbMeta]);
 
   const currentEpisodeMeta = useMemo(() => {
-    return currentSeasonEpisodes.find((e: any) => e.episode_number === currentEpisode);
+    if (currentEpisode <= 0) return null;
+    return (
+      currentSeasonEpisodes[currentEpisode - 1] ||
+      currentSeasonEpisodes.find((e: any) => e.episode_number === currentEpisode) ||
+      null
+    );
   }, [currentSeasonEpisodes, currentEpisode]);
 
   const nextEpisodeMeta = useMemo(() => {
     if (!nextEp) return null;
-    if (nextEp.season === currentSeason) {
-      return currentSeasonEpisodes.find((e: any) => e.episode_number === nextEp.episode);
-    } else {
-      return nextSeasonEpisodes.find((e: any) => e.episode_number === nextEp.episode);
-    }
+    const targetEpisodes =
+      nextEp.season === currentSeason ? currentSeasonEpisodes : nextSeasonEpisodes;
+    if (nextEp.episode <= 0) return null;
+    return (
+      targetEpisodes[nextEp.episode - 1] ||
+      targetEpisodes.find((e: any) => e.episode_number === nextEp.episode) ||
+      null
+    );
   }, [nextEp, currentSeason, currentSeasonEpisodes, nextSeasonEpisodes]);
 
   const enrichedEpisodes = useMemo(() => {
-    if (!isSeries || !seasonsData?.seasons) return [];
-    const currentSeasonData = seasonsData.seasons.find((s: any) => s.season === currentSeason);
+    if (!isSeries || !seasonMapping.mappedSeasons.length) return [];
+    const currentSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason);
     if (!currentSeasonData) return [];
     
     const count = currentSeasonData.episode_count || 0;
     const list = [];
     for (let i = 1; i <= count; i++) {
-      const tmdbEp = currentSeasonEpisodes.find((e: any) => e.episode_number === i);
+      const index = i - 1;
+      const tmdbEp =
+        currentSeasonEpisodes[index] ||
+        currentSeasonEpisodes.find((e: any) => e.episode_number === i);
       list.push({
         episode_number: i,
         name: tmdbEp?.name || `Episode ${i}`,
@@ -207,7 +258,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       });
     }
     return list;
-  }, [isSeries, seasonsData, currentSeason, currentSeasonEpisodes]);
+  }, [isSeries, seasonMapping, currentSeason, currentSeasonEpisodes]);
 
   const handleEpisodeChange = (season: number, episode: number) => {
     setCurrentSeason(season);

@@ -48,9 +48,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#09090B",
+  themeColor: "#0a0a0f",
   colorScheme: "dark",
 };
+
+// Warm up connections to the third-party hosts the page depends on.
+// The API serves details/recommendations; wsrv.nl serves every image.
+const PRECONNECT_HOSTS = [
+  "https://movie-api.opsihab.tech",
+  "https://wsrv.nl",
+];
 
 export default function RootLayout({
   children,
@@ -59,9 +66,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {PRECONNECT_HOSTS.map((host) => (
+          <link key={host} rel="preconnect" href={host} crossOrigin="anonymous" />
+        ))}
+        <link rel="dns-prefetch" href="https://image.tmdb.org" />
+      </head>
       <body suppressHydrationWarning className={inter.variable}>
         <NextTopLoader
-          color="var(--accent-color, #8B5CF6)"
+          color="#E50914"
           initialPosition={0.08}
           crawlSpeed={200}
           height={3}
@@ -69,7 +82,7 @@ export default function RootLayout({
           showSpinner={false}
           easing="ease"
           speed={200}
-          shadow="0 0 10px var(--accent-color, #8B5CF6)"
+          shadow="0 0 12px rgba(229, 9, 20, 0.65)"
         />
         <Navbar />
         <main>{children}</main>

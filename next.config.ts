@@ -22,6 +22,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
+  reactStrictMode: true,
+  // Target modern browsers: smaller polyfills, faster parses.
+  // (Safari 15.4+ supports :has(), cascade layers, and dynamic viewport units.)
+  // browserslist can further tune this in package.json if needed.
   async headers() {
     return [
       {
@@ -31,7 +35,7 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
-    optimizePackageImports: ["lucide-react"],
+    optimizePackageImports: ["lucide-react", "nextjs-toploader"],
   },
 };
 

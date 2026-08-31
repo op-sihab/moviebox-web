@@ -4,6 +4,21 @@ const TMDB_API_KEY =
   "0ded8ddd0719ef0f717a6a5343f2a348";
 
 
+export interface TMDBSeasonSummary {
+  season_number: number;
+  name: string;
+  episode_count: number;
+  poster_path?: string | null;
+  overview?: string;
+}
+
+export interface TMDBCastMember {
+  staffId: string;
+  name: string;
+  character: string;
+  avatarUrl: string;
+}
+
 export interface TMDBShowMetadata {
   id: number;
   name: string;
@@ -12,6 +27,8 @@ export interface TMDBShowMetadata {
   logo_url: string | null;
   vote_average: number;
   overview: string;
+  seasons?: TMDBSeasonSummary[];
+  cast?: TMDBCastMember[];
 }
 
 export interface TMDBEpisode {
@@ -23,35 +40,31 @@ export interface TMDBEpisode {
   air_date: string | null;
 }
 
-/**
- * Cleans language tags, season/episode indicators, and other modifiers
- * from show titles for accurate TMDB searches.
- *
- * Examples:
- *   "The Boys [Hindi] S1-S5"       → "The Boys"
- *   "Breaking Bad (Season 3)"      → "Breaking Bad"
- *   "Naruto S01E05 [Bengali]"      → "Naruto"
- *   "Loki Season 1-2"              → "Loki"
- *   "Wednesday Complete Series"    → "Wednesday"
- */
+export { buildSeasonMapping } from "./seasonMapper";
+export type { SeasonMapping, MappedSeason } from "./seasonMapper";
+
 export function cleanTitle(title: string): string {
+  if (!title) return "";
   return title
-    .replace(/\[.*?\]/g, "")                    // Remove bracketed tags like [Hindi], [Anime]
-    .replace(/\(.*?\)/g, "")                    // Remove parenthesized text like (Season 1), (2024)
-    .replace(/\bS\d+[\s\-]*E?\d*[\s\-]*S?\d*/gi, "")  // Remove S1, S1-S5, S01E05, S1-S3E10 etc.
-    .replace(/\bSeason\s*\d+[\s\-]*\d*/gi, "")  // Remove "Season 1", "Season 1-3"
-    .replace(/\bComplete\s*(Series|Season|Collection)?\b/gi, "") // Remove "Complete Series" etc.
+    .replace(/\[.*?\]/g, " ")                    // Remove bracketed tags like [Hindi], [Dual Audio], [Anime]
+    .replace(/\(.*?\)/g, " ")                    // Remove parenthesized text like (Season 1), (2024), (Hindi Dub)
+    .replace(/\bS\d+[\s\-]*(E\d+)?(\s*-\s*S?\d+)?\b/gi, " ")  // Remove S1, S1-S5, S01E05, S1-S3E10 etc.
+    .replace(/\bSeason\s*\d+([\s\-]+(to|\-|and)[\s\-]*\d+)?\b/gi, " ")  // Remove "Season 1", "Season 1-3"
+    .replace(/\b(Complete\s*(Series|Season|Collection)?|Dual\s*Audio|Multi\s*Audio|Dubbed|Hindi\s*Dub|Bangla\s*Dub|English\s*Dub|Tamil\s*Dub|Telugu\s*Dub)\b/gi, " ")
+    .replace(/\b(1080p|720p|480p|4k|uhd|hdrip|webrip|bluray|x264|x265|hevc)\b/gi, " ")
     .replace(/\s{2,}/g, " ")                    // Collapse multiple spaces into one
     .trim();
 }
 
 /**
- * Normalizes a title string for comparison by lowercasing, removing punctuation/hyphens,
- * and collapsing whitespace. This allows fuzzy matching between titles like
- * "Spider Man Noir" and "Spider-Noir".
+ * Normalizes a title string for comparison by lowercasing, stripping diacritics/accents,
+ * removing punctuation/hyphens, and collapsing whitespace.
  */
 function normalizeForComparison(str: string): string {
+  if (!str) return "";
   return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Strip accents like ū -> u, é -> e
     .toLowerCase()
     .replace(/[-:''`]/g, " ")   // Replace hyphens/punctuation with spaces
     .replace(/[^a-z0-9\s]/g, "") // Remove remaining special chars
@@ -69,14 +82,18 @@ function isTitleMatch(query: string, tmdbTitle: string): boolean {
   const normQuery = normalizeForComparison(query);
   const normMatch = normalizeForComparison(tmdbTitle);
 
+  if (!normQuery || !normMatch) return false;
+
   // Direct containment check (normalized)
-  if (normMatch.includes(normQuery) || normQuery.includes(normMatch)) {
+  if (normMatch === normQuery || normMatch.includes(normQuery) || normQuery.includes(normMatch)) {
     return true;
   }
 
-  // Word overlap check — at least 50% of the shorter title's words must appear in the longer one
+  // Word overlap check
   const queryWords = normQuery.split(" ").filter(w => w.length > 1);
   const matchWords = normMatch.split(" ").filter(w => w.length > 1);
+
+  if (queryWords.length === 0 || matchWords.length === 0) return false;
 
   const shorter = queryWords.length <= matchWords.length ? queryWords : matchWords;
   const longer = queryWords.length > matchWords.length ? queryWords : matchWords;
@@ -84,8 +101,7 @@ function isTitleMatch(query: string, tmdbTitle: string): boolean {
   const overlapCount = shorter.filter(word => longer.includes(word)).length;
   const overlapRatio = overlapCount / shorter.length;
 
-  // Need at least 60% word overlap to consider it a match
-  return overlapRatio >= 0.6;
+  return overlapRatio >= 0.5;
 }
 
 /**
@@ -140,8 +156,34 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
       return null; // fallback to avoid wrong metadata
     }
 
-    // Fetch title logo concurrently
-    const logoUrl = await getTitleLogo(bestMatch.id, "tv");
+    // Fetch title logo, show details (seasons), and credits concurrently
+    const [logoUrl, detailsData, creditsData] = await Promise.all([
+      getTitleLogo(bestMatch.id, "tv"),
+      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}?api_key=${TMDB_API_KEY}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
+
+    const rawSeasons = detailsData?.seasons || [];
+    const seasons: TMDBSeasonSummary[] = rawSeasons
+      .filter((s: any) => s.season_number > 0 && s.episode_count > 0)
+      .map((s: any) => ({
+        season_number: s.season_number,
+        name: s.name || `Season ${s.season_number}`,
+        episode_count: s.episode_count,
+        poster_path: s.poster_path ? `https://image.tmdb.org/t/p/w500${s.poster_path}` : null,
+        overview: s.overview || "",
+      }));
+
+    const castList: TMDBCastMember[] = (creditsData?.cast || []).slice(0, 12).map((c: any) => ({
+      staffId: String(c.id),
+      name: c.name,
+      character: c.character ? c.character.replace(/\s*\(voice\)/gi, "").trim() : "Cast",
+      avatarUrl: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : "",
+    }));
 
     return {
       id: bestMatch.id,
@@ -155,6 +197,8 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
       logo_url: logoUrl,
       vote_average: bestMatch.vote_average || 0,
       overview: bestMatch.overview || "",
+      seasons: seasons.length > 0 ? seasons : undefined,
+      cast: castList.length > 0 ? castList : undefined,
     };
   } catch (err) {
     console.error("TMDB TV Search Error:", err);
@@ -212,8 +256,20 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
       return null;
     }
 
-    // Fetch title logo concurrently
-    const logoUrl = await getTitleLogo(bestMatch.id, "movie");
+    // Fetch title logo and credits concurrently
+    const [logoUrl, creditsData] = await Promise.all([
+      getTitleLogo(bestMatch.id, "movie"),
+      fetch(`https://api.themoviedb.org/3/movie/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
+
+    const castList: TMDBCastMember[] = (creditsData?.cast || []).slice(0, 12).map((c: any) => ({
+      staffId: String(c.id),
+      name: c.name,
+      character: c.character ? c.character.replace(/\s*\(voice\)/gi, "").trim() : "Cast",
+      avatarUrl: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : "",
+    }));
 
     return {
       id: bestMatch.id,
@@ -227,6 +283,7 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
       logo_url: logoUrl,
       vote_average: bestMatch.vote_average || 0,
       overview: bestMatch.overview || "",
+      cast: castList.length > 0 ? castList : undefined,
     };
   } catch (err) {
     console.error("TMDB Movie Search Error:", err);

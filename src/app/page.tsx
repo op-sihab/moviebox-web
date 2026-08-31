@@ -3,7 +3,7 @@ import ContinueWatching from "@/components/ContinueWatching";
 import { getHomepage } from "@/services/api";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play, Info, AlertTriangle } from "lucide-react";
+import { Play, Info, AlertTriangle, Star } from "lucide-react";
 import { img } from "@/services/image";
 
 const HERO_WIDTH = 1920;
@@ -55,7 +55,6 @@ export default async function Home() {
 
   return (
     <main className={styles.main}>
-
       {heroMovie && (
         <section className={styles.hero}>
           <div className={styles.heroBackground}>
@@ -68,30 +67,54 @@ export default async function Home() {
               width={HERO_WIDTH}
               height={HERO_HEIGHT}
             />
-            <div className={styles.heroGradient}></div>
+            <div className={styles.heroGradient} />
           </div>
-          
+
           <div className={`container ${styles.heroContent}`}>
+            <div className={styles.badgeRow}>
+              <span className={styles.heroBadge}>FEATURED SPOTLIGHT</span>
+              <span className={styles.heroQualityBadge}>4K ULTRA HD</span>
+            </div>
             <h1 className={styles.heroTitle}>{heroMovie.title}</h1>
-            <p className={styles.heroMeta}>
-              {heroMovie.subject?.releaseDate && <span>{heroMovie.subject.releaseDate.split("-")[0]}</span>}
-              {heroMovie.subject?.genre && <span>{heroMovie.subject.genre.replace(/,/g, " • ")}</span>}
-              {heroMovie.subject?.imdbRatingValue && <span className={styles.rating}>★ {heroMovie.subject.imdbRatingValue}</span>}
-            </p>
+            
+            {heroMovie.subject?.description && (
+              <p className={styles.heroOverview}>{heroMovie.subject.description}</p>
+            )}
+
+            <div className={styles.heroMeta}>
+              {heroMovie.subject?.imdbRatingValue && (
+                <span className={styles.rating}>
+                  <Star size={14} fill="currentColor" color="currentColor" />
+                  IMDb {heroMovie.subject.imdbRatingValue}
+                </span>
+              )}
+              {heroMovie.subject?.releaseDate && (
+                <span className={styles.metaChip}>{heroMovie.subject.releaseDate.split("-")[0]}</span>
+              )}
+              <span className={styles.metaChip}>
+                {heroMovie.subject?.subjectType === 2 ? "TV Series" : "Movie"}
+              </span>
+              {heroMovie.subject?.genre && (
+                <span className={styles.genreChip}>
+                  {heroMovie.subject.genre.split(",").slice(0, 3).join(" • ")}
+                </span>
+              )}
+            </div>
+
             <div className={styles.heroActions}>
               <Link
-                href={`/movie/${heroMovie.detailPath}`}
+                href={`/watch/${heroMovie.detailPath}`}
                 className={styles.playButton}
               >
-                <Play fill="white" size={20} />
-                <span>Play Now</span>
+                <Play fill="currentColor" size={20} />
+                <span>Watch Now</span>
               </Link>
               <Link
-                href={`/movie/${heroMovie.detailPath}`}
+                href={`/${heroMovie.subject?.subjectType === 2 ? "tv" : "movie"}/${heroMovie.detailPath}`}
                 className={styles.infoButton}
               >
                 <Info size={20} />
-                <span>More Info</span>
+                <span>More Details</span>
               </Link>
             </div>
           </div>

@@ -95,12 +95,12 @@
   letter-spacing: 3px;
   line-height: 1;
   color: #fff;
-  text-shadow: 0 0 28px rgba(139, 92, 246, 0.4);
+  text-shadow: 0 0 28px rgba(229, 9, 20, 0.5);
   animation: wordReveal 1s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
 }
 
 .wordmark span {
-  background: linear-gradient(135deg, #A78BFA 0%, #E879F9 100%);
+  background: linear-gradient(135deg, #e50914 0%, #ff4b60 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -225,7 +225,7 @@
   height: 100%;
   width: 40%;
   border-radius: 3px;
-  background: linear-gradient(90deg, transparent, #8B5CF6, #E879F9, transparent);
+  background: linear-gradient(90deg, transparent, #e50914, #ff385c, transparent);
   animation: loadSlide 1.2s ease-in-out infinite;
 }
 

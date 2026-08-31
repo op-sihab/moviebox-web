@@ -88,13 +88,13 @@ export default function BrandIntro({
         >
           <defs>
             <linearGradient id="bx-ring" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#A78BFA" />
-              <stop offset="50%" stopColor="#8B5CF6" />
-              <stop offset="100%" stopColor="#E879F9" />
+              <stop offset="0%" stopColor="#E50914" />
+              <stop offset="50%" stopColor="#FF385C" />
+              <stop offset="100%" stopColor="#F97316" />
             </linearGradient>
             <linearGradient id="bx-play" x1="0" y1="0" x2="1" y2="1">
               <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#ffd9dc" />
+              <stop offset="100%" stopColor="#ffe4e6" />
             </linearGradient>
             <filter id="bx-glow" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3.2" result="b" />

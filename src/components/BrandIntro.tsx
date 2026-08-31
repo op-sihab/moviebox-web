@@ -79,56 +79,21 @@ export default function BrandIntro({
 
       <div className={styles.logoWrap} aria-hidden={finished || undefined}>
         {/* ===== Animated brand mark ===== */}
-        <svg
-          className={styles.mark}
-          viewBox="0 0 120 120"
-          width="118"
-          height="118"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="bx-ring" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#E50914" />
-              <stop offset="50%" stopColor="#FF385C" />
-              <stop offset="100%" stopColor="#F97316" />
-            </linearGradient>
-            <linearGradient id="bx-play" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#ffffff" />
-              <stop offset="100%" stopColor="#ffe4e6" />
-            </linearGradient>
-            <filter id="bx-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="3.2" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {/* Outer circle that draws itself */}
-          <circle
-            className={styles.markRing}
-            cx="60"
-            cy="60"
-            r="46"
-            fill="none"
-            stroke="url(#bx-ring)"
-            strokeWidth="5"
-            filter="url(#bx-glow)"
+        <div className={styles.markContainer}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="CineAura Logo"
+            className={styles.markImg}
           />
-
-          {/* Play-prism group that fades + scales in */}
-          <g className={styles.markPlay}>
-            <path d="M48 40 L62 48 L62 72 L48 80 Z" fill="url(#bx-play)" />
-            <path d="M68 51 L84 60 L68 69 Z" fill="url(#bx-ring)" />
-          </g>
-        </svg>
+          <div className={styles.markGlow} />
+        </div>
 
         {/* ===== Wordmark ===== */}
         <div className={styles.wordmark}>
-          CINE<span>AURA</span>
+          Cine<span>Aura</span>
           <span className={styles.shine} aria-hidden="true">
-            CINEAURA
+            CineAura
           </span>
         </div>
 

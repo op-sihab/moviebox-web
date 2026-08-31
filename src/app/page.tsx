@@ -1,6 +1,7 @@
 import Carousel from "@/components/Carousel";
 import ContinueWatching from "@/components/ContinueWatching";
 import { getHomepage } from "@/services/api";
+import { searchMovie, searchTVShow } from "@/services/tmdb";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { Play, Info, AlertTriangle, Star } from "lucide-react";
@@ -27,6 +28,22 @@ export default async function Home() {
   const bannerBlock = operatingList.find((op: any) => op.type === "BANNER");
   const banners = bannerBlock?.banner?.items || [];
   const heroMovie = banners.length > 0 ? banners[0] : null;
+
+  // Enrich hero with TMDB title logo and description if available
+  let heroTmdb: any = null;
+  if (heroMovie?.title) {
+    try {
+      const isTv = heroMovie.subject?.subjectType === 2 || heroMovie.subjectType === 2;
+      heroTmdb = isTv
+        ? await searchTVShow(heroMovie.title)
+        : await searchMovie(heroMovie.title);
+    } catch (err) {
+      console.error("Hero TMDB fetch failed:", err);
+    }
+  }
+
+  const heroLogoUrl = heroTmdb?.logo_url || null;
+  const heroOverview = heroMovie?.subject?.description || heroTmdb?.overview || "";
 
   // Extract carousels
   const carouselBlocks = operatingList.filter(
@@ -71,20 +88,28 @@ export default async function Home() {
           </div>
 
           <div className={`container ${styles.heroContent}`}>
-            <div className={styles.badgeRow}>
-              <span className={styles.heroBadge}>FEATURED SPOTLIGHT</span>
-              <span className={styles.heroQualityBadge}>4K ULTRA HD</span>
-            </div>
-            <h1 className={styles.heroTitle}>{heroMovie.title}</h1>
+            {heroLogoUrl ? (
+              <div className={styles.heroLogoWrapper}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={img.logo(heroLogoUrl)}
+                  alt={heroMovie.title}
+                  className={styles.heroTitleLogo}
+                  fetchPriority="high"
+                />
+              </div>
+            ) : (
+              <h1 className={styles.heroTitle}>{heroMovie.title}</h1>
+            )}
             
-            {heroMovie.subject?.description && (
-              <p className={styles.heroOverview}>{heroMovie.subject.description}</p>
+            {heroOverview && (
+              <p className={styles.heroOverview}>{heroOverview}</p>
             )}
 
             <div className={styles.heroMeta}>
               {heroMovie.subject?.imdbRatingValue && (
                 <span className={styles.rating}>
-                  <Star size={14} fill="currentColor" color="currentColor" />
+                  <Star size={13} fill="currentColor" color="currentColor" />
                   IMDb {heroMovie.subject.imdbRatingValue}
                 </span>
               )}
@@ -106,14 +131,14 @@ export default async function Home() {
                 href={`/watch/${heroMovie.detailPath}`}
                 className={styles.playButton}
               >
-                <Play fill="currentColor" size={20} />
+                <Play fill="currentColor" size={18} />
                 <span>Watch Now</span>
               </Link>
               <Link
                 href={`/${heroMovie.subject?.subjectType === 2 ? "tv" : "movie"}/${heroMovie.detailPath}`}
                 className={styles.infoButton}
               >
-                <Info size={20} />
+                <Info size={18} />
                 <span>More Details</span>
               </Link>
             </div>
@@ -136,6 +161,7 @@ export default async function Home() {
 
           // Stable key from the section title (suffix only on duplicates)
           const duplicate = arr.slice(0, idx).some((s: any) => s.title === block.title);
+          const isTrendingOrTop = idx === 0 || /top\s*10|trending|popular/i.test(block.title);
 
           return (
             <Carousel
@@ -143,6 +169,7 @@ export default async function Home() {
               title={block.title}
               movies={mappedMovies}
               eager={idx === 0}
+              ranked={isTrendingOrTop}
             />
           );
         })}

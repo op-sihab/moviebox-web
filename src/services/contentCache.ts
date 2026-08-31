@@ -26,6 +26,7 @@ export interface CoreDetails {
 
 export interface TmdbEnrichment {
   backdropUrl: string | null;
+  titledBackdropUrl?: string | null;
   logoUrl: string | null;
   meta: any;
 }
@@ -197,13 +198,14 @@ export function fetchTmdb(
 
   if (!pendingTmdb[id]) {
     pendingTmdb[id] = (async () => {
-      let result: TmdbEnrichment = { backdropUrl: null, logoUrl: null, meta: null };
+      let result: TmdbEnrichment = { backdropUrl: null, titledBackdropUrl: null, logoUrl: null, meta: null };
       try {
         if (type === "movie") {
           const { searchMovie } = await import("@/services/tmdb");
           const meta = await searchMovie(title);
           result = {
             backdropUrl: meta?.backdrop_url || null,
+            titledBackdropUrl: meta?.titled_backdrop_url || null,
             logoUrl: meta?.logo_url || null,
             meta,
           };
@@ -212,6 +214,7 @@ export function fetchTmdb(
           const meta = await searchTVShow(title);
           result = {
             backdropUrl: meta?.backdrop_url || null,
+            titledBackdropUrl: meta?.titled_backdrop_url || null,
             logoUrl: meta?.logo_url || null,
             meta,
           };
@@ -325,7 +328,10 @@ export function fetchDownload(id: string, season: number, episode: number): Prom
       );
       if (!res.ok) throw new Error("Failed to fetch download links");
       const json = await res.json();
-      const files = json?.files || [];
+      const rawFiles = json?.files || [];
+      const files = rawFiles
+        .filter((f: any) => Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== ""))
+        .sort((a: any, b: any) => (b.resolution_value || 0) - (a.resolution_value || 0));
       downloadCache.set(key, files);
       return files;
     })();

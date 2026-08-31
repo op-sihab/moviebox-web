@@ -400,7 +400,7 @@
 .cinemaModeActive {
   position: relative;
   z-index: 101 !important;
-  box-shadow: 0 0 50px var(--accent-glow), 0 20px 40px rgba(0,0,0,0.8) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 0 20px var(--accent-glow) !important;
   border-color: var(--accent-color) !important;
 }
 

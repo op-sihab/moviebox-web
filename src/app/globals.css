@@ -14,19 +14,19 @@
   --accent-color: #e50914;
   --accent-hover: #ff2e3b;
   --accent-deep: #b8050e;
-  --accent-glow: rgba(229, 9, 20, 0.45);
-  --accent-soft: rgba(229, 9, 20, 0.12);
-  --accent-border: rgba(229, 9, 20, 0.35);
+  --accent-glow: rgba(229, 9, 20, 0.15);
+  --accent-soft: rgba(229, 9, 20, 0.1);
+  --accent-border: rgba(229, 9, 20, 0.25);
   --gradient-accent: linear-gradient(135deg, #e50914 0%, #ff2a4b 100%);
   --gradient-cinema: linear-gradient(135deg, #e50914 0%, #f97316 100%);
 
   /* Rating gold */
   --gold: #f5a623;
-  --gold-glow: rgba(245, 166, 35, 0.35);
+  --gold-glow: rgba(245, 166, 35, 0.15);
 
   /* Borders & radius */
   --border-color: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.14);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
@@ -63,7 +63,7 @@ body {
   overflow-x: hidden;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

@@ -23,9 +23,9 @@
 .card {
   display: block;
   position: relative;
-  border-radius: var(--radius-md);
+  border-radius: 16px;
   overflow: hidden;
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 190 / 275;
   cursor: pointer;
   background-color: var(--bg-secondary);
   width: 100%;
@@ -35,8 +35,8 @@
 }
 
 .cardContainer:hover .card {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.15);
+  transform: translateY(-6px) scale(1.04);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .imageContainer {
@@ -45,6 +45,23 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+}
+
+.imageContainer::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.75) 0%,
+    rgba(0, 0, 0, 0.2) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 1;
 }
 
 .image {
@@ -112,6 +129,8 @@
   opacity: 1;
 }
 
+
+
 .qualityBadge {
   position: absolute;
   top: 8px;
@@ -140,52 +159,83 @@
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   z-index: 3;
 }
 
+/* টেক্সট সেকশনের মূল কন্টেইনার */
 .bottomInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  padding: 0 0.15rem;
+  margin-top: 10px;        /* পোস্টার থেকে দূরত্বের গ্যাপ */
+  padding-left: 2px;
+  width: 100%;
 }
 
+/* ১. মুভির নাম (Title) */
 .bottomTitle {
-  font-size: 0.92rem;
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+  font-size: 13.5px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ffffff;
+  line-height: 1.3;
+  margin-bottom: 4px;
+  margin-top: 0;
+  
+  /* নাম বেশি বড় হলে ডট ডট (...) আসবে */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin: 0;
-  letter-spacing: -0.01em;
   transition: color 0.2s ease;
 }
 
 .cardContainer:hover .bottomTitle {
-  color: #fff;
+  color: #ffffff;
 }
 
+/* ২. নিচের লাইন (Star, Rating, Year, Movie) */
 .bottomMeta {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.76rem;
-  color: var(--text-secondary);
+  gap: 6px;                /* উপাদানগুলোর মাঝের ফাঁকা জায়গা */
+  font-family: var(--font-poppins), 'Poppins', sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #8c8c8e;          /* হালকা ধূসর রঙ */
+}
+
+/* হলুদ স্টার আইকন */
+.starIcon {
+  color: #f5c518;          /* IMDb গোল্ডেন হলুদ */
+  fill: #f5c518;
+  font-size: 11px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* রেটিং নাম্বার */
+.ratingText {
+  color: #e5e5e7;
+  font-weight: 600;
+}
+
+/* মাঝের ছোট ডট (•) */
+.dot {
+  font-size: 8px;
+  color: #555558;
+  line-height: 1;
+}
+
+.yearText,
+.mediaTypeLabel {
+  color: #8c8c8e;
+  font-size: 11.5px;
+  font-weight: 500;
 }
 
 .year {
-  background: rgba(255, 255, 255, 0.07);
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
-.mediaTypeLabel {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+  color: #8c8c8e;
+  font-size: 11.5px;
   font-weight: 500;
 }
 
@@ -223,29 +273,32 @@
    ========================================================================== */
 .hoverModal {
   position: absolute;
-  top: -12px;
-  left: -20px;
-  width: calc(100% + 40px);
-  min-width: 250px;
-  background: #12151d;
-  border-radius: 14px;
+  top: -8px;
+  width: calc(100% + 72px);
+  min-width: 290px;
+  background: #0e1118;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  box-shadow: 0 28px 65px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.13);
   z-index: var(--z-hover-card, 150);
   cursor: pointer;
-  animation: hoverModalPop 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   pointer-events: auto;
 }
 
-@keyframes hoverModalPop {
-  0% {
-    opacity: 0;
-    transform: scale(0.94) translateY(4px);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
+.alignCenter {
+  left: 50%;
+  transform-origin: center top;
+}
+
+.alignLeft {
+  left: 0;
+  transform-origin: left top;
+}
+
+.alignRight {
+  right: 0;
+  left: auto;
+  transform-origin: right top;
 }
 
 .modalMediaWrapper {
@@ -256,11 +309,44 @@
   background: #08090c;
 }
 
+.bannerSkeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite ease-in-out;
+  z-index: 1;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .modalImage {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s var(--ease-out);
+  transition: opacity 0.35s ease, transform 0.4s var(--ease-out);
+}
+
+.bannerLoading {
+  opacity: 0;
+}
+
+.bannerLoaded {
+  opacity: 1;
 }
 
 .hoverModal:hover .modalImage {
@@ -272,57 +358,41 @@
   inset: 0;
   background: linear-gradient(
     to top,
-    #12151d 0%,
-    rgba(18, 21, 29, 0.4) 40%,
+    #0e1118 0%,
+    rgba(14, 17, 24, 0.4) 40%,
     transparent 100%
   );
+  z-index: 2;
 }
 
-.modalPlayOverlay {
+.modalLogoOverlay {
   position: absolute;
-  inset: 0;
+  bottom: 12px;
+  left: 14px;
+  max-width: 65%;
+  max-height: 44px;
+  z-index: 3;
+  pointer-events: none;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  background: rgba(0, 0, 0, 0.3);
-  transition: opacity 0.2s ease;
+  align-items: flex-end;
+  transition: opacity 0.35s ease;
 }
 
-.hoverModal:hover .modalPlayOverlay {
+.logoLoading {
+  opacity: 0;
+}
+
+.logoLoaded {
   opacity: 1;
 }
 
-.modalCenterPlay {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: var(--accent-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 18px var(--accent-glow);
-  transform: scale(0.9);
-  transition: transform 0.2s var(--ease-spring);
-}
-
-.modalPlayOverlay:hover .modalCenterPlay {
-  transform: scale(1.08);
-}
-
-.modalHdBadge {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 2px 7px;
-  border-radius: 4px;
+.modalTitleLogo {
+  max-width: 100%;
+  max-height: 44px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.85));
 }
 
 .modalBody {
@@ -410,7 +480,11 @@
 
 .modalRating {
   color: var(--gold);
-  font-weight: 700;
+  font-weight: 750;
+  font-size: 0.84rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .modalYear {

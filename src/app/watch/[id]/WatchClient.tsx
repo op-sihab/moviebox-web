@@ -107,9 +107,21 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     };
   }, [id]);
 
-  // Sync selectedFile when files change (e.g. changing episode)
+  // Sync selectedFile when files change (e.g. changing episode or initial load)
   useEffect(() => {
-    const defaultFile = files.find((f: any) => f.resolution === "720p") || files[0] || null;
+    const playable = (files || []).filter(
+      (f: any) => Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== "")
+    );
+    if (playable.length === 0) {
+      setSelectedFile(null);
+      return;
+    }
+    // Prefer highest available resolution (1080p > 720p > 480p > 360p)
+    const defaultFile =
+      playable.find((f: any) => f.resolution === "1080p") ||
+      playable.find((f: any) => f.resolution === "720p") ||
+      playable.find((f: any) => f.resolution === "480p") ||
+      playable[0];
     setSelectedFile(defaultFile);
   }, [files]);
 

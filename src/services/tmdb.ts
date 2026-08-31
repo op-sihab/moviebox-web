@@ -23,6 +23,7 @@ export interface TMDBShowMetadata {
   id: number;
   name: string;
   backdrop_url: string | null;
+  titled_backdrop_url: string | null;
   poster_url: string | null;
   logo_url: string | null;
   vote_average: number;
@@ -46,6 +47,7 @@ export type { SeasonMapping, MappedSeason } from "./seasonMapper";
 export function cleanTitle(title: string): string {
   if (!title) return "";
   return title
+    .replace(/^(Trailer|Teaser|Clip|Preview|Official\s+Trailer)[\s\-:]+/gi, " ")
     .replace(/\[.*?\]/g, " ")                    // Remove bracketed tags like [Hindi], [Dual Audio], [Anime]
     .replace(/\(.*?\)/g, " ")                    // Remove parenthesized text like (Season 1), (2024), (Hindi Dub)
     .replace(/\bS\d+[\s\-]*(E\d+)?(\s*-\s*S?\d+)?\b/gi, " ")  // Remove S1, S1-S5, S01E05, S1-S3E10 etc.
@@ -90,46 +92,64 @@ function isTitleMatch(query: string, tmdbTitle: string): boolean {
   }
 
   // Word overlap check
-  const queryWords = normQuery.split(" ").filter(w => w.length > 1);
-  const matchWords = normMatch.split(" ").filter(w => w.length > 1);
+  const queryWords = normQuery.split(" ").filter((w) => w.length > 1);
+  const matchWords = normMatch.split(" ").filter((w) => w.length > 1);
 
   if (queryWords.length === 0 || matchWords.length === 0) return false;
 
   const shorter = queryWords.length <= matchWords.length ? queryWords : matchWords;
   const longer = queryWords.length > matchWords.length ? queryWords : matchWords;
 
-  const overlapCount = shorter.filter(word => longer.includes(word)).length;
+  const overlapCount = shorter.filter((word) => longer.includes(word)).length;
   const overlapRatio = overlapCount / shorter.length;
 
-  return overlapRatio >= 0.5;
+  return overlapRatio >= 0.75;
 }
 
 /**
- * Fetches the best English title treatment logo for a movie or TV show from TMDB
- * Prefers PNG logos with English language, falls back to any available logo
+ * Fetches title treatment logo and titled backdrop (banner with embedded text) concurrently
  */
-export async function getTitleLogo(tmdbId: number, type: "movie" | "tv"): Promise<string | null> {
+export async function getImagesInfo(
+  tmdbId: number,
+  type: "movie" | "tv"
+): Promise<{ logoUrl: string | null; titledBackdropUrl: string | null }> {
   try {
     const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${TMDB_API_KEY}`;
     const res = await fetch(url);
-    if (!res.ok) return null;
+    if (!res.ok) return { logoUrl: null, titledBackdropUrl: null };
 
     const data = await res.json();
     const logos = data.logos || [];
-    if (logos.length === 0) return null;
+    const backdrops = data.backdrops || [];
 
-    // Prefer English PNG logos with good aspect ratio (wide logos look best)
+    // 1. Titled Backdrop (16:9 banner with official English title text embedded)
+    const enTitledBackdrops = backdrops.filter(
+      (b: any) => b.iso_639_1 === "en" && b.file_path
+    );
+    const bestTitledBackdrop = enTitledBackdrops.length > 0 ? enTitledBackdrops[0] : null;
+    const titledBackdropUrl = bestTitledBackdrop?.file_path
+      ? `https://image.tmdb.org/t/p/w780${bestTitledBackdrop.file_path}`
+      : null;
+
+    // 2. English PNG title logo
     const enPngLogos = logos.filter(
       (l: any) => l.iso_639_1 === "en" && l.file_path?.endsWith(".png")
     );
     const bestLogo = enPngLogos.length > 0 ? enPngLogos[0] : logos.find((l: any) => l.file_path?.endsWith(".png")) || logos[0];
+    const logoUrl = bestLogo?.file_path
+      ? `https://image.tmdb.org/t/p/w500${bestLogo.file_path}`
+      : null;
 
-    if (!bestLogo?.file_path) return null;
-    return `https://image.tmdb.org/t/p/w500${bestLogo.file_path}`;
+    return { logoUrl, titledBackdropUrl };
   } catch (err) {
-    console.error(`TMDB logo fetch error for ${type}/${tmdbId}:`, err);
-    return null;
+    console.error(`TMDB images fetch error for ${type}/${tmdbId}:`, err);
+    return { logoUrl: null, titledBackdropUrl: null };
   }
+}
+
+export async function getTitleLogo(tmdbId: number, type: "movie" | "tv"): Promise<string | null> {
+  const { logoUrl } = await getImagesInfo(tmdbId, type);
+  return logoUrl;
 }
 
 /**
@@ -153,12 +173,12 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
     
     if (!isTitleMatch(query, bestMatch.name)) {
       console.warn(`TMDB Safeguard mismatch: Tried searching "${query}", matched with "${bestMatch.name}"`);
-      return null; // fallback to avoid wrong metadata
+      return null;
     }
 
-    // Fetch title logo, show details (seasons), and credits concurrently
-    const [logoUrl, detailsData, creditsData] = await Promise.all([
-      getTitleLogo(bestMatch.id, "tv"),
+    // Fetch images, show details (seasons), and credits concurrently
+    const [imagesInfo, detailsData, creditsData] = await Promise.all([
+      getImagesInfo(bestMatch.id, "tv"),
       fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}?api_key=${TMDB_API_KEY}`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
@@ -191,10 +211,11 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
       backdrop_url: bestMatch.backdrop_path 
         ? `https://image.tmdb.org/t/p/original${bestMatch.backdrop_path}` 
         : null,
+      titled_backdrop_url: imagesInfo.titledBackdropUrl,
       poster_url: bestMatch.poster_path 
         ? `https://image.tmdb.org/t/p/w500${bestMatch.poster_path}` 
         : null,
-      logo_url: logoUrl,
+      logo_url: imagesInfo.logoUrl,
       vote_average: bestMatch.vote_average || 0,
       overview: bestMatch.overview || "",
       seasons: seasons.length > 0 ? seasons : undefined,
@@ -256,9 +277,9 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
       return null;
     }
 
-    // Fetch title logo and credits concurrently
-    const [logoUrl, creditsData] = await Promise.all([
-      getTitleLogo(bestMatch.id, "movie"),
+    // Fetch images and credits concurrently
+    const [imagesInfo, creditsData] = await Promise.all([
+      getImagesInfo(bestMatch.id, "movie"),
       fetch(`https://api.themoviedb.org/3/movie/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`)
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
@@ -277,10 +298,11 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
       backdrop_url: bestMatch.backdrop_path 
         ? `https://image.tmdb.org/t/p/original${bestMatch.backdrop_path}` 
         : null,
+      titled_backdrop_url: imagesInfo.titledBackdropUrl,
       poster_url: bestMatch.poster_path 
         ? `https://image.tmdb.org/t/p/w500${bestMatch.poster_path}` 
         : null,
-      logo_url: logoUrl,
+      logo_url: imagesInfo.logoUrl,
       vote_average: bestMatch.vote_average || 0,
       overview: bestMatch.overview || "",
       cast: castList.length > 0 ? castList : undefined,

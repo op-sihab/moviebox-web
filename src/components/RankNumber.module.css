@@ -1,0 +1,36 @@
+.rankNumber {
+  font-family: var(--font-poppins), "Poppins", sans-serif;
+  font-weight: 900;
+  -webkit-text-stroke: 2px #ffffff;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: none;
+  line-height: 0.8;
+  font-size: 110px;
+  display: block;
+  user-select: none;
+  will-change: transform;
+  transition: transform 0.3s ease, -webkit-text-fill-color 0.3s ease;
+  letter-spacing: -0.06em;
+  -webkit-mask-image: linear-gradient(90deg, #000000 40%, rgba(0, 0, 0, 0.4) 75%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000000 40%, rgba(0, 0, 0, 0.4) 75%, transparent 100%);
+}
+
+:global([class*="rankedItem"]:hover) .rankNumber,
+:global(.Carousel_rankedItem__tqT2j:hover) .rankNumber {
+  -webkit-text-fill-color: #ffffff;
+  -webkit-mask-image: linear-gradient(90deg, #000000 50%, rgba(0, 0, 0, 0.6) 80%, transparent 100%);
+  mask-image: linear-gradient(90deg, #000000 50%, rgba(0, 0, 0, 0.6) 80%, transparent 100%);
+}
+
+@media (min-width: 640px) {
+  .rankNumber {
+    font-size: 125px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .rankNumber {
+    font-size: 140px;
+  }
+}

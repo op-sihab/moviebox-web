@@ -27,9 +27,12 @@ export default function MovieClient({ id }: MovieClientProps) {
   const [activeId, setActiveId] = useState(id);
   const [retryToken, setRetryToken] = useState(0);
 
-  // Sync prop changes
+  // Sync prop changes & always scroll window to the top instantly
   useEffect(() => {
     setActiveId(id);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
   }, [id]);
 
   const [movie, setMovie] = useState<any>(null);

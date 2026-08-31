@@ -35,16 +35,46 @@
   gap: 1.1rem;
 }
 
-/* Brand mark (SVG) */
-.mark {
-  overflow: visible;
+.markContainer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   animation: markPop 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.markImg {
+  width: clamp(90px, 12vw, 130px);
+  height: clamp(90px, 12vw, 130px);
+  object-fit: contain;
+  filter: drop-shadow(0 0 35px rgba(229, 9, 20, 0.65));
+}
+
+.markGlow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(229, 9, 20, 0.4) 0%, transparent 70%);
+  filter: blur(12px);
+  pointer-events: none;
+  animation: pulseGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes pulseGlow {
+  from {
+    opacity: 0.5;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0.9;
+    transform: scale(1.1);
+  }
 }
 
 @keyframes markPop {
   0% {
     opacity: 0;
-    transform: scale(0.6) rotate(-12deg);
+    transform: scale(0.6) rotate(-8deg);
   }
   100% {
     opacity: 1;
@@ -52,51 +82,17 @@
   }
 }
 
-/* Outer ring draws itself */
-.markRing {
-  stroke-dasharray: 290;
-  stroke-dashoffset: 290;
-  animation: drawRing 1.2s cubic-bezier(0.65, 0, 0.35, 1) 0.2s forwards;
-}
-
-@keyframes drawRing {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* Play triangle scales + fades in after the ring starts */
-.markPlay {
-  transform-origin: 60px 60px;
-  opacity: 0;
-  animation: playReveal 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.85s forwards;
-}
-
-@keyframes playReveal {
-  0% {
-    opacity: 0;
-    transform: scale(0.3);
-  }
-  70% {
-    opacity: 1;
-    transform: scale(1.12);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 /* ===== Wordmark ===== */
 .wordmark {
   position: relative;
-  font-size: clamp(2.2rem, 7vw, 4.6rem);
+  font-family: var(--font-montserrat), "Montserrat", sans-serif;
+  font-size: clamp(2.4rem, 7vw, 4.8rem);
   font-weight: 900;
-  letter-spacing: 3px;
+  letter-spacing: -0.01em;
   line-height: 1;
   color: #fff;
-  text-shadow: 0 0 28px rgba(229, 9, 20, 0.5);
-  animation: wordReveal 1s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+  text-shadow: 0 0 32px rgba(229, 9, 20, 0.5);
+  animation: wordReveal 1s cubic-bezier(0.16, 1, 0.3, 1) 0.45s both;
 }
 
 .wordmark span {

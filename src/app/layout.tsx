@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Montserrat, Poppins } from "next/font/google";
 import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
@@ -9,6 +9,20 @@ const inter = Inter({
   weight: ["400", "500", "600", "700"],
   display: "swap",
   variable: "--font-inter",
+});
+
+const montserrat = Montserrat({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-montserrat",
+});
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800", "900"],
+  display: "swap",
+  variable: "--font-poppins",
 });
 
 const siteUrl = new URL(
@@ -72,7 +86,7 @@ export default function RootLayout({
         ))}
         <link rel="dns-prefetch" href="https://image.tmdb.org" />
       </head>
-      <body suppressHydrationWarning className={inter.variable}>
+      <body suppressHydrationWarning className={`${inter.variable} ${montserrat.variable} ${poppins.variable}`}>
         <NextTopLoader
           color="#E50914"
           initialPosition={0.08}

@@ -483,6 +483,11 @@ export default function CustomVideoPlayer({
   const handleLoadedMetadata = () => {
     if (!videoRef.current) return;
     setDuration(videoRef.current.duration);
+    if (previousTimeRef.current > 0) {
+      try {
+        videoRef.current.currentTime = previousTimeRef.current;
+      } catch {}
+    }
   };
 
   const handleCanPlay = () => {
@@ -494,7 +499,9 @@ export default function CustomVideoPlayer({
 
     // Restore previous playback progress if switching qualities
     if (previousTimeRef.current > 0) {
-      videoRef.current.currentTime = previousTimeRef.current;
+      try {
+        videoRef.current.currentTime = previousTimeRef.current;
+      } catch {}
       previousTimeRef.current = 0; // reset
     }
 

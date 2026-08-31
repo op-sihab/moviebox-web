@@ -39,9 +39,12 @@ export default function TVClient({ id }: TVClientProps) {
   const [activeId, setActiveId] = useState(id);
   const [retryToken, setRetryToken] = useState(0);
 
-  // Sync prop changes
+  // Sync prop changes & always scroll window to the top instantly
   useEffect(() => {
     setActiveId(id);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
   }, [id]);
 
   const [movie, setMovie] = useState<any>(null);
@@ -564,16 +567,14 @@ export default function TVClient({ id }: TVClientProps) {
                   )}
                 </div>
 
-                <div className={styles.episodesList}>
-                  {episodesLoading && enrichedEpisodes.length === 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-                      {[1, 2, 3].map((i) => (
-                        <div key={i} className={styles.episodeCard} style={{ pointerEvents: "none" }}>
-                          <div className={styles.episodeStillContainer}>
-                            <div className="skeleton" style={{ width: "100%", height: "100%" }} />
-                          </div>
-                          <div className={styles.episodeDetails} style={{ gap: "0.6rem" }}>
-                            <div className="skeleton" style={{ height: 18, width: "55%", borderRadius: 4 }} />
+                <div className={styles.episodesScrollBox}>
+                  {episodesLoading ? (
+                    <div className={styles.episodesSkeletonList}>
+                      {Array.from({ length: Math.min(8, currentSeasonInfo?.episode_count || 6) }, (_, i) => (
+                        <div key={`skel-${i}`} className={styles.episodeCardSkeleton}>
+                          <div className={`${styles.episodeStillSkeleton} skeleton`} />
+                          <div className={styles.episodeDetailsSkeleton}>
+                            <div className="skeleton" style={{ height: 20, width: "45%", borderRadius: 6 }} />
                             <div className="skeleton" style={{ height: 14, width: "85%", borderRadius: 4 }} />
                             <div className="skeleton" style={{ height: 14, width: "65%", borderRadius: 4 }} />
                           </div>

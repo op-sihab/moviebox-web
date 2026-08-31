@@ -3,9 +3,10 @@
 import { memo, useCallback, useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Play, Plus, Check, ThumbsUp, ChevronDown } from "lucide-react";
+import { Play, Plus, Check, ThumbsUp, ChevronDown, Star } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import styles from "./MovieCard.module.css";
-import { prefetchDetails } from "@/services/contentCache";
+import { prefetchDetails, fetchTmdb, getCachedTmdb } from "@/services/contentCache";
 import { img } from "@/services/image";
 import { isInMyList, toggleMyList } from "@/services/mylist";
 
@@ -44,18 +45,36 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
       : `https://image.tmdb.org/t/p/w500${imagePath}`)
     : "/placeholder.png";
 
+  const id = movie._id || movie.id;
+  const type = movie.media_type || "movie";
+
+  // TMDB image & logo resolution for rich 16:9 hover banner
+  const [tmdbInfo, setTmdbInfo] = useState<{
+    backdropUrl: string | null;
+    titledBackdropUrl: string | null;
+    logoUrl: string | null;
+  } | null>(() => {
+    if (!id) return null;
+    const cached = getCachedTmdb(String(id));
+    if (cached) {
+      return {
+        backdropUrl: cached.backdropUrl,
+        titledBackdropUrl: cached.titledBackdropUrl || cached.meta?.titled_backdrop_url || null,
+        logoUrl: cached.logoUrl,
+      };
+    }
+    return null;
+  });
+
   const posterUrl = img.poster(rawImageUrl);
-  const backdropUrl = movie.backdrop_path 
-    ? (movie.backdrop_path.startsWith("http") ? movie.backdrop_path : `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`)
-    : rawImageUrl;
-  const hoverPreviewUrl = img.backdrop(backdropUrl);
+  const bannerWithTitle = tmdbInfo?.titledBackdropUrl;
+  const effectiveBackdrop = bannerWithTitle || tmdbInfo?.backdropUrl || (movie.backdrop_path ? (movie.backdrop_path.startsWith("http") ? movie.backdrop_path : `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`) : rawImageUrl);
+  const hoverPreviewUrl = img.backdrop(effectiveBackdrop);
+  const titleLogoUrl = !bannerWithTitle && tmdbInfo?.logoUrl ? tmdbInfo.logoUrl : null;
 
   const date = movie.release_date || movie.first_air_date;
   const year = date ? new Date(date).getFullYear() : "";
   const rating = movie.vote_average ? movie.vote_average.toFixed(1) : "";
-
-  const id = movie._id || movie.id;
-  const type = movie.media_type || "movie";
 
   const isContinueWatching = typeof movie.progress === "number" && typeof movie.duration === "number";
 
@@ -72,6 +91,8 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
 
   // Hover modal state
   const [isHovered, setIsHovered] = useState(false);
+  const [modalAlign, setModalAlign] = useState<"center" | "left" | "right">("center");
+  const [isBannerLoaded, setIsBannerLoaded] = useState(false);
   const [inList, setInList] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -82,15 +103,43 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
     }
   }, [id]);
 
-  const handleMouseEnter = useCallback(() => {
-    if (id) prefetchDetails(String(id), type === "tv" ? "tv" : "movie");
+  const handleMouseEnter = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Dynamic boundary safeguard: prevent left/right screen clipping
+    const rect = e.currentTarget.getBoundingClientRect();
+    const leftSpace = rect.left;
+    const rightSpace = window.innerWidth - rect.right;
+
+    if (leftSpace < 70) {
+      setModalAlign("left");
+    } else if (rightSpace < 70) {
+      setModalAlign("right");
+    } else {
+      setModalAlign("center");
+    }
+
+    if (id) {
+      prefetchDetails(String(id), type === "tv" ? "tv" : "movie");
+      if (!tmdbInfo && title) {
+        fetchTmdb(String(id), type === "tv" ? "tv" : "movie", title)
+          .then((res) => {
+            if (res) {
+              setTmdbInfo({
+                backdropUrl: res.backdropUrl,
+                titledBackdropUrl: res.titledBackdropUrl || res.meta?.titled_backdrop_url || null,
+                logoUrl: res.logoUrl,
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    }
     
-    // Smooth debounce on desktop hover
+    // Intentional hold debounce (Netflix standard 400ms) so casual scrolling does not pop cards
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
       setIsHovered(true);
-    }, 280);
-  }, [id, type]);
+    }, 400);
+  }, [id, type, title, tmdbInfo]);
 
   const handleMouseLeave = useCallback(() => {
     if (hoverTimerRef.current) {
@@ -129,13 +178,19 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
   const handlePlayClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (playHref) router.push(playHref);
+    if (playHref) {
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      router.push(playHref, { scroll: true });
+    }
   };
 
   const handleDetailsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (detailHref) router.push(detailHref);
+    if (detailHref) {
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      router.push(detailHref, { scroll: true });
+    }
   };
 
   if (!id) {
@@ -160,7 +215,14 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
       onTouchStart={handleTouchStart}
     >
       {/* Base Card */}
-      <Link href={isContinueWatching ? playHref : detailHref} className={styles.cardLink}>
+      <Link
+        href={isContinueWatching ? playHref : detailHref}
+        scroll={true}
+        className={styles.cardLink}
+        onClick={() => {
+          if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        }}
+      >
         <div className={styles.card}>
           <div className={`${styles.imageContainer} skeleton`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -178,16 +240,6 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
               </div>
             </div>
 
-            {/* Quality Badge */}
-            <span className={styles.qualityBadge}>HD</span>
-
-            {/* Rating Pill */}
-            {rating && (
-              <span className={styles.cardRatingBadge}>
-                ★ {rating}
-              </span>
-            )}
-
             {/* Continue watching progress */}
             {isContinueWatching && movie.progress! > 0 && movie.duration! > 0 && (
               <div className={styles.progressBarContainer}>
@@ -203,107 +255,160 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
         <div className={styles.bottomInfo}>
           <h3 className={styles.bottomTitle}>{title}</h3>
           <div className={styles.bottomMeta}>
+            {rating && (
+              <>
+                <Star size={11} className={styles.starIcon} />
+                <span className={styles.ratingText}>{rating}</span>
+                {(year || movie.episodeTitle) && <span className={styles.dot}>•</span>}
+              </>
+            )}
             {movie.episodeTitle ? (
               <span className={styles.episodeLabel}>{movie.episodeTitle}</span>
             ) : (
-              year && <span className={styles.year}>{year}</span>
+              year && <span className={styles.yearText}>{year}</span>
             )}
+            {(year || movie.episodeTitle) && <span className={styles.dot}>•</span>}
             <span className={styles.mediaTypeLabel}>
-              {type === "tv" ? "TV Series" : "Movie"}
+              {type === "tv" ? "TV" : "Movie"}
             </span>
           </div>
         </div>
       </Link>
 
-      {/* Netflix-Style Elevated Hover Mini-Card Modal */}
-      {isHovered && (
-        <div className={styles.hoverModal} onClick={handleDetailsClick}>
-          {/* Modal Header Thumbnail with Video / Backdrop */}
-          <div className={styles.modalMediaWrapper}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={hoverPreviewUrl}
-              alt={title}
-              className={styles.modalImage}
-            />
-            <div className={styles.modalGradient} />
-
-            <div className={styles.modalPlayOverlay} onClick={handlePlayClick}>
-              <div className={styles.modalCenterPlay}>
-                <Play fill="white" size={24} />
-              </div>
-            </div>
-
-            <span className={styles.modalHdBadge}>4K ULTRA HD</span>
-          </div>
-
-          {/* Modal Body & Quick Interactive Actions */}
-          <div className={styles.modalBody}>
-            <div className={styles.modalActionsRow}>
-              <div className={styles.modalActionsLeft}>
-                <button
-                  className={styles.modalPlayBtn}
-                  onClick={handlePlayClick}
-                  title="Play"
-                  aria-label="Play"
-                >
-                  <Play fill="currentColor" size={18} />
-                </button>
-                <button
-                  className={`${styles.modalIconBtn} ${inList ? styles.modalIconActive : ""}`}
-                  onClick={handleToggleList}
-                  title={inList ? "Remove from List" : "Add to My List"}
-                  aria-label="Toggle List"
-                >
-                  {inList ? <Check size={18} /> : <Plus size={18} />}
-                </button>
-                <button
-                  className={`${styles.modalIconBtn} ${isLiked ? styles.modalIconActive : ""}`}
-                  onClick={handleToggleLike}
-                  title="Like"
-                  aria-label="Like"
-                >
-                  <ThumbsUp size={16} />
-                </button>
-              </div>
-
-              <button
-                className={styles.modalDetailsBtn}
-                onClick={handleDetailsClick}
-                title="More Details"
-                aria-label="More Details"
-              >
-                <ChevronDown size={18} />
-              </button>
-            </div>
-
-            {/* Modal Title */}
-            <h4 className={styles.modalTitle}>{title}</h4>
-
-            {/* Metadata Pills */}
-            <div className={styles.modalMetaRow}>
-              {rating && (
-                <span className={styles.modalRating}>
-                  ★ {rating}
-                </span>
+      {/* Netflix-Style Motion Animated Elevated Hover Mini-Card Modal */}
+      <AnimatePresence>
+        {isHovered && (
+          <motion.div
+            className={`${styles.hoverModal} ${
+              modalAlign === "left"
+                ? styles.alignLeft
+                : modalAlign === "right"
+                ? styles.alignRight
+                : styles.alignCenter
+            }`}
+            onClick={handleDetailsClick}
+            initial={{
+              opacity: 0,
+              scale: 0.9,
+              x: modalAlign === "center" ? "-50%" : 0,
+              y: 6,
+            }}
+            animate={{
+              opacity: 1,
+              scale: 1.08,
+              x: modalAlign === "center" ? "-50%" : 0,
+              y: 0,
+            }}
+            exit={{
+              opacity: 0,
+              scale: 0.93,
+              x: modalAlign === "center" ? "-50%" : 0,
+              y: 4,
+            }}
+            transition={{
+              type: "spring",
+              stiffness: 380,
+              damping: 28,
+              mass: 0.7,
+            }}
+          >
+            {/* Modal Header Thumbnail with Video / Backdrop */}
+            <div className={styles.modalMediaWrapper}>
+              {/* Skeleton shimmer before banner loads */}
+              {!isBannerLoaded && (
+                <div className={`${styles.bannerSkeleton} skeleton`} />
               )}
-              {year && <span className={styles.modalYear}>{year}</span>}
-              <span className={styles.modalTypePill}>
-                {type === "tv" ? "TV Series" : "Movie"}
-              </span>
+
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={hoverPreviewUrl}
+                alt={title}
+                onLoad={() => setIsBannerLoaded(true)}
+                className={`${styles.modalImage} ${isBannerLoaded ? styles.bannerLoaded : styles.bannerLoading}`}
+              />
+              <div className={styles.modalGradient} />
+
+              {/* Standalone transparent title logo overlay if backdrop is textless */}
+              {titleLogoUrl && (
+                <div className={`${styles.modalLogoOverlay} ${isBannerLoaded ? styles.logoLoaded : styles.logoLoading}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.logo(titleLogoUrl)}
+                    alt={title}
+                    className={styles.modalTitleLogo}
+                  />
+                </div>
+              )}
             </div>
 
-            {/* Genre tags */}
-            <div className={styles.modalGenres}>
-              <span>Cinema</span>
-              <span className={styles.dot}>•</span>
-              <span>Popular</span>
-              <span className={styles.dot}>•</span>
-              <span>HD Stream</span>
+            {/* Modal Body & Quick Interactive Actions */}
+            <div className={styles.modalBody}>
+              <div className={styles.modalActionsRow}>
+                <div className={styles.modalActionsLeft}>
+                  <button
+                    className={styles.modalPlayBtn}
+                    onClick={handlePlayClick}
+                    title="Play"
+                    aria-label="Play"
+                  >
+                    <Play fill="currentColor" size={18} />
+                  </button>
+                  <button
+                    className={`${styles.modalIconBtn} ${inList ? styles.modalIconActive : ""}`}
+                    onClick={handleToggleList}
+                    title={inList ? "Remove from List" : "Add to My List"}
+                    aria-label="Toggle List"
+                  >
+                    {inList ? <Check size={18} /> : <Plus size={18} />}
+                  </button>
+                  <button
+                    className={`${styles.modalIconBtn} ${isLiked ? styles.modalIconActive : ""}`}
+                    onClick={handleToggleLike}
+                    title="Like"
+                    aria-label="Like"
+                  >
+                    <ThumbsUp size={16} />
+                  </button>
+                </div>
+
+                <button
+                  className={styles.modalDetailsBtn}
+                  onClick={handleDetailsClick}
+                  title="More Details"
+                  aria-label="More Details"
+                >
+                  <ChevronDown size={18} />
+                </button>
+              </div>
+
+              {/* Modal Title */}
+              <h4 className={styles.modalTitle}>{title}</h4>
+
+              {/* Metadata Pills */}
+              <div className={styles.modalMetaRow}>
+                {rating && (
+                  <span className={styles.modalRating}>
+                    <Star size={12} fill="currentColor" /> {rating}
+                  </span>
+                )}
+                {year && <span className={styles.modalYear}>{year}</span>}
+                <span className={styles.modalTypePill}>
+                  {type === "tv" ? "TV Series" : "Movie"}
+                </span>
+              </div>
+
+              {/* Genre tags */}
+              <div className={styles.modalGenres}>
+                <span>Cinema</span>
+                <span className={styles.dot}>•</span>
+                <span>Popular</span>
+                <span className={styles.dot}>•</span>
+                <span>HD Stream</span>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

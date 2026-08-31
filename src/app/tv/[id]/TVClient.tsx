@@ -44,20 +44,19 @@ export default function TVClient({ id }: TVClientProps) {
     setActiveId(id);
   }, [id]);
 
-  // Synchronous cache reads for instantaneous transitions
-  const [movie, setMovie] = useState<any>(() => getCachedCore(activeId)?.movie ?? null);
-  const [cast, setCast] = useState<any[]>(() => getCachedCore(activeId)?.cast ?? []);
-  const [dubs, setDubs] = useState<any[]>(() => getCachedCore(activeId)?.dubs ?? []);
-  const [seasonsData, setSeasonsData] = useState<any>(() => getCachedCore(activeId)?.seasons ?? null);
-  const [recommendations, setRecommendations] = useState<any[]>(() => getCachedRecs(activeId) ?? []);
-  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.backdropUrl ?? null);
-  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(() => getCachedTmdb(activeId)?.meta ?? null);
+  const [movie, setMovie] = useState<any>(null);
+  const [cast, setCast] = useState<any[]>([]);
+  const [dubs, setDubs] = useState<any[]>([]);
+  const [seasonsData, setSeasonsData] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
+  const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(null);
   const [logoReady, setLogoReady] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [episodes, setEpisodes] = useState<any[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
-  const [loading, setLoading] = useState(() => !getCachedCore(activeId)?.movie);
-  const [recsLoading, setRecsLoading] = useState(() => !getCachedRecs(activeId));
+  const [loading, setLoading] = useState(true);
+  const [recsLoading, setRecsLoading] = useState(true);
   const [inList, setInList] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [episodesProgress, setEpisodesProgress] = useState<{ [key: string]: { progress: number; duration: number } }>({});

@@ -32,17 +32,16 @@ export default function MovieClient({ id }: MovieClientProps) {
     setActiveId(id);
   }, [id]);
 
-  // Read synchronously from in-memory cache on initial render so navigation is instantaneous
-  const [movie, setMovie] = useState<any>(() => getCachedCore(activeId)?.movie ?? null);
-  const [cast, setCast] = useState<any[]>(() => getCachedCore(activeId)?.cast ?? []);
-  const [dubs, setDubs] = useState<any[]>(() => getCachedCore(activeId)?.dubs ?? []);
-  const [recommendations, setRecommendations] = useState<any[]>(() => getCachedRecs(activeId) ?? []);
-  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.backdropUrl ?? null);
-  const [tmdbLogoUrl, setTmdbLogoUrl] = useState<string | null>(() => getCachedTmdb(activeId)?.logoUrl ?? null);
-  const [tmdbMeta, setTmdbMeta] = useState<any>(() => getCachedTmdb(activeId)?.meta ?? null);
+  const [movie, setMovie] = useState<any>(null);
+  const [cast, setCast] = useState<any[]>([]);
+  const [dubs, setDubs] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
+  const [tmdbLogoUrl, setTmdbLogoUrl] = useState<string | null>(null);
+  const [tmdbMeta, setTmdbMeta] = useState<any>(null);
   const [logoReady, setLogoReady] = useState(false);
-  const [loading, setLoading] = useState(() => !getCachedCore(activeId)?.movie);
-  const [recsLoading, setRecsLoading] = useState(() => !getCachedRecs(activeId));
+  const [loading, setLoading] = useState(true);
+  const [recsLoading, setRecsLoading] = useState(true);
   const [inList, setInList] = useState(false);
   const [fetchError, setFetchError] = useState(false);
   const [continueRecord, setContinueRecord] = useState<{ progress?: number; duration?: number } | null>(null);

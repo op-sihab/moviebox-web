@@ -298,6 +298,14 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   };
 
+  const handleDubChange = (targetDub: any) => {
+    const targetId = String(targetDub.subject_id || targetDub.detail_path || "");
+    if (targetId && targetId !== String(id)) {
+      const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
+      router.push(`/watch/${targetId}${query}`);
+    }
+  };
+
   const backHref = `/${isSeries ? "tv" : "movie"}/${id}`;
   const playerTitle = movie?.title || "Now Playing";
   const episodeLabel = isSeries
@@ -335,6 +343,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           backHref={backHref}
           onReady={() => setVideoReady(true)}
           dubs={dubs}
+          onDubChange={handleDubChange}
         />
       )}
 

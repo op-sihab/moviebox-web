@@ -212,12 +212,12 @@ export default function MovieClient({ id }: MovieClientProps) {
         prefetchDownload(activeId, 0, 0, "movie");
 
         // 2. NON-BLOCKING: Additional TMDB enrichment (cast avatars, overview fallback if needed)
-        if (data.movie?.title) {
+        if (data.movie?.title && (!data.backdropUrl || !data.logoUrl || !data.tmdbId)) {
           fetchTmdb(activeId, "movie", data.movie.title)
             .then((enr) => {
               if (!active) return;
-              if (enr.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
-              if (enr.logoUrl) {
+              if (enr.backdropUrl && !data.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
+              if (enr.logoUrl && !data.logoUrl) {
                 setTmdbLogoUrl(enr.logoUrl);
               }
               if (enr.meta) setTmdbMeta(enr.meta);

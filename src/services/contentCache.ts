@@ -230,19 +230,31 @@ export function fetchCore(id: string, type: "movie" | "tv" = "movie"): Promise<C
       const tmdbId = json?.tmdb_id ? Number(json.tmdb_id) : (typeof json?.id === "number" ? json.id : null);
       const isTv = json?.media_type === "tv" || type === "tv" || json?.data?.subject?.subjectType === 2 || Array.isArray(json?.seasons) || (json?.total_seasons && json.total_seasons > 0);
 
-      // Supports both new API structure and legacy API structure
-      const subject = json?.data?.subject || {
-        subjectId: tmdbId || json?.id,
-        title: json?.title || json?.name || json?.original_title,
-        description: json?.overview || json?.tagline || "",
-        releaseDate: json?.release_date || "",
-        duration: json?.runtime_minutes ? json.runtime_minutes * 60 : 0,
-        genre: Array.isArray(json?.genres) ? json.genres.join(",") : (json?.genre || ""),
-        imdbRatingValue: json?.rating ? String(json.rating) : "0",
+      // Prioritize top-level clean API structure over legacy data.subject
+      const title = json?.title || json?.name || json?.data?.subject?.title || "";
+      const description = json?.overview || json?.description || json?.tagline || json?.data?.subject?.description || "";
+      const releaseDate = json?.release_date || json?.releaseDate || json?.data?.subject?.releaseDate || "";
+      const duration = json?.runtime ? json.runtime * 60 : (json?.runtime_minutes ? json.runtime_minutes * 60 : (json?.data?.subject?.duration || 0));
+      const genre = Array.isArray(json?.genres) ? json.genres.join(", ") : (json?.genre || json?.data?.subject?.genre || "");
+      const rating = json?.rating ? String(json.rating) : (json?.data?.subject?.imdbRatingValue || "0");
+
+      const subject = {
+        subjectId: tmdbId || json?.id || json?.data?.subject?.subjectId || id,
+        title,
+        description,
+        releaseDate,
+        duration,
+        genre,
+        imdbRatingValue: rating,
         cover: { url: posterUrl || backdropUrl },
-        detailPath: id,
-        countryName: json?.countryName || "",
+        stills: { url: backdropUrl || posterUrl },
+        detailPath: json?.detail_path || id,
+        countryName: json?.countryName || json?.data?.subject?.countryName || "",
         subjectType: isTv ? 2 : 1,
+        hasResource: json?.data?.subject?.hasResource ?? true,
+        trailer: json?.data?.subject?.trailer || (json?.trailer ? { videoAddress: { url: json.trailer } } : null),
+        postList: json?.data?.postList,
+        accessStrategy: json?.data?.accessStrategy,
       };
 
       const data: CoreDetails = {

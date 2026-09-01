@@ -272,11 +272,11 @@ export default function TVClient({ id }: TVClientProps) {
         // Predictive Async Pre-warming
         prefetchDownload(activeId, continueRecord?.season || fetchFirstSeason, continueRecord?.episode || 1, "tv");
 
-        if (data.movie?.title) {
+        if (data.movie?.title && (!data.backdropUrl || !data.logoUrl || !data.tmdbId)) {
           fetchTmdb(activeId, "tv", data.movie.title)
             .then((enr) => {
               if (!active) return;
-              if (enr.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
+              if (enr.backdropUrl && !data.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
               setTmdbShowMeta((prev: any) => ({ ...prev, ...enr.meta }));
             })
             .catch(() => {});

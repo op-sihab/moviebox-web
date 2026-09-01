@@ -36,9 +36,6 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   }, [id, activeId]);
 
-  const cachedCore = getCachedCore(activeId);
-  const cachedTmdb = getCachedTmdb(activeId);
-
   const [movie, setMovie] = useState<any>(null);
   const [seasonsData, setSeasonsData] = useState<any>(null);
   const [tmdbMeta, setTmdbMeta] = useState<any>(null);
@@ -78,7 +75,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return buildSeasonMapping(seasonsData, tmdbMeta?.seasons);
   }, [seasonsData, tmdbMeta?.seasons]);
 
-  // 1. Load core details from cache or network
+  // 1. Initial details loading
   useEffect(() => {
     let active = true;
     const core = getCachedCore(activeId);
@@ -103,7 +100,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           .catch(() => {});
       }
     } else {
-      setDetailsLoading(true);
+      if (!movie) setDetailsLoading(true);
       fetchCore(activeId)
         .then((data) => {
           if (!active) return;
@@ -139,7 +136,6 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
         Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== "")
     );
     if (playable.length === 0) {
-      setSelectedFile(null);
       return;
     }
     const defaultFile =
@@ -150,9 +146,9 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     setSelectedFile(defaultFile);
   }, [files]);
 
-  // 2. Fetch stream links whenever the season/episode changes
+  // 2. Fetch stream links (seamlessly without clearing files when switching dubs)
   useEffect(() => {
-    if (detailsLoading || !movie) return;
+    if (!movie) return;
 
     let active = true;
     const backendCoords = isSeries
@@ -162,16 +158,21 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const e = backendCoords.mbxEpisode;
 
     const cached = getCachedDownload(activeId, s, e);
-    if (cached) {
+    if (cached && cached.length > 0) {
       setFiles(cached);
       setLoadingFiles(false);
       return;
     }
 
-    setLoadingFiles(true);
+    if (files.length === 0) {
+      setLoadingFiles(true);
+    }
+
     fetchDownload(activeId, s, e, isSeries ? "tv" : "movie")
       .then((f) => {
-        if (active) setFiles(f);
+        if (active && f && f.length > 0) {
+          setFiles(f);
+        }
       })
       .catch((err) => console.error("Failed to load streaming links", err))
       .finally(() => {
@@ -181,7 +182,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-  }, [currentSeason, currentEpisode, activeId, isSeries, detailsLoading, movie, seasonMapping]);
+  }, [currentSeason, currentEpisode, activeId, isSeries, movie, seasonMapping]);
 
   // Determine next episode
   const nextEp = useMemo(() => {
@@ -316,7 +317,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   };
 
-  // Seamless in-place audio dub switch without full-page navigation
+  // Seamless in-place audio dub switch without unmounting player or refreshing page
   const handleDubChange = async (targetDub: any) => {
     const targetId = String(targetDub.subject_id || targetDub.detail_path || "");
     if (!targetId || targetId === String(activeId)) return;
@@ -357,12 +358,12 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       }`
     : undefined;
 
-  const hasError =
-    !detailsLoading && (!movie || (!loadingFiles && (!files || files.length === 0)));
+  const hasPlayerMounted = Boolean(movie);
+  const hasError = !detailsLoading && (!movie || (!loadingFiles && (!files || files.length === 0)));
 
   return (
     <div className={styles.stage}>
-      {movie && !loadingFiles && files && files.length > 0 && (
+      {hasPlayerMounted && (
         <CustomVideoPlayer
           id={activeId}
           mediaType={isSeries ? "tv" : "movie"}
@@ -402,8 +403,8 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
         />
       )}
 
-      {/* Fallback skeleton loader */}
-      {introDone && !hasError && (loadingFiles || (detailsLoading && !movie)) && (
+      {/* Initial load fallback skeleton */}
+      {introDone && !hasError && (detailsLoading && !movie) && (
         <div className={styles.stageLoader}>
           <Link href={backHref} className={styles.floatingBack} title="Back to details">
             <span>←</span>

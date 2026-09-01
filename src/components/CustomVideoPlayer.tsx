@@ -102,8 +102,7 @@ export default function CustomVideoPlayer({
   const [aspectMode, setAspectMode] = useState<"contain" | "cover" | "fill">("contain");
   const [audioSearch, setAudioSearch] = useState("");
 
-  // Gesture Feedback
-  const [gestureSide, setGestureSide] = useState<"left" | "right" | null>(null);
+  // Action Splash (Center feedback for play/pause/skip)
   const [splashAction, setSplashAction] = useState<"play" | "pause" | null>(null);
 
   // Timeline Hover & Dragging
@@ -120,7 +119,6 @@ export default function CustomVideoPlayer({
   const [isCountdownCancelled, setIsCountdownCancelled] = useState(false);
 
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousTimeRef = useRef(0);
   const isPlayingRef = useRef(false);
   const isMutedRef = useRef(false);
@@ -128,13 +126,8 @@ export default function CustomVideoPlayer({
   const isScrubbingRef = useRef(false);
   const isSeamlessSwitchingRef = useRef(false);
 
-  // Helper to access current active video
   const getActiveVideo = useCallback(() => {
     return activeSlot === "A" ? videoRefA.current : videoRefB.current;
-  }, [activeSlot]);
-
-  const getInactiveVideo = useCallback(() => {
-    return activeSlot === "A" ? videoRefB.current : videoRefA.current;
   }, [activeSlot]);
 
   useEffect(() => {
@@ -150,11 +143,11 @@ export default function CustomVideoPlayer({
   }, [isFullscreen]);
 
   useEffect(() => {
-    const active = getActiveVideo();
-    if (active) {
-      active.playbackRate = playbackRate;
+    const video = getActiveVideo();
+    if (video) {
+      video.playbackRate = playbackRate;
     }
-  }, [getActiveVideo, playbackRate]);
+  }, [playbackRate, getActiveVideo]);
 
   // Deferred Spinner
   useEffect(() => {
@@ -326,17 +319,17 @@ export default function CustomVideoPlayer({
       return;
     }
 
-    const currentActive = getActiveVideo();
     const isFirstLoad = !slotAUrl && !slotBUrl;
 
     if (isFirstLoad) {
-      // First mount
       setSlotAUrl(newLink);
       setActiveSlot("A");
       setIsLoading(true);
     } else {
-      // Audio or quality switched while watching!
-      // Keep active video playing continuously!
+      const activeUrl = activeSlot === "A" ? slotAUrl : slotBUrl;
+      if (activeUrl === newLink) return;
+
+      // Seamless background swap: keep active video playing continuously!
       isSeamlessSwitchingRef.current = true;
       const targetSlot = activeSlot === "A" ? "B" : "A";
 
@@ -346,7 +339,7 @@ export default function CustomVideoPlayer({
         setSlotAUrl(newLink);
       }
     }
-  }, [selectedFile, activeSlot, getActiveVideo, slotAUrl, slotBUrl]);
+  }, [selectedFile, activeSlot, slotAUrl, slotBUrl]);
 
   // Handle when a video slot is loaded and ready
   const handleSlotReady = (slot: "A" | "B") => {
@@ -355,7 +348,7 @@ export default function CustomVideoPlayer({
 
     if (!targetVideo) return;
 
-    // If it is the initial active slot loading for first time
+    // Initial mount load
     if (!isSeamlessSwitchingRef.current && slot === activeSlot) {
       const dur = targetVideo.duration;
       setDuration(dur);
@@ -386,7 +379,6 @@ export default function CustomVideoPlayer({
 
       if (wasPlaying) {
         targetVideo.play().then(() => {
-          // Frame-synced swap:
           setActiveSlot(slot);
           activeVideo.pause();
           setIsPlaying(true);
@@ -516,33 +508,7 @@ export default function CustomVideoPlayer({
     }
   };
 
-  const handleWaiting = (slot: "A" | "B") => {
-    if (slot === activeSlot && !isSeamlessSwitchingRef.current) {
-      setIsLoading(true);
-    }
-  };
-
-  const handlePlaying = (slot: "A" | "B") => {
-    if (slot === activeSlot) {
-      setIsLoading(false);
-      setIsPlaying(true);
-    }
-  };
-
-  const handlePause = (slot: "A" | "B") => {
-    if (slot === activeSlot && !isSeamlessSwitchingRef.current) {
-      setIsPlaying(false);
-      setShowControls(true);
-    }
-  };
-
-  const handleError = (slot: "A" | "B") => {
-    if (slot === activeSlot) {
-      setIsLoading(false);
-      setVideoError(true);
-    }
-  };
-
+  // Immediate Click-To-Play / Pause
   const togglePlay = () => {
     const video = getActiveVideo();
     if (!video) return;
@@ -553,7 +519,7 @@ export default function CustomVideoPlayer({
       video.play().catch(console.error);
       setSplashAction("play");
     }
-    setTimeout(() => setSplashAction(null), 600);
+    setTimeout(() => setSplashAction(null), 500);
     resetControlsTimeout();
   };
 
@@ -584,8 +550,6 @@ export default function CustomVideoPlayer({
       0,
       Math.min(duration, video.currentTime + seconds)
     );
-    setGestureSide(seconds < 0 ? "left" : "right");
-    setTimeout(() => setGestureSide(null), 700);
     resetControlsTimeout();
   };
 
@@ -770,31 +734,6 @@ export default function CustomVideoPlayer({
     };
   }, [isPlaying, duration, onNextEpisode, mediaType, resetControlsTimeout, getActiveVideo]);
 
-  // Video Container Click (Double tap skip / Single tap play)
-  const handleContainerClick = (e: React.MouseEvent<HTMLElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const isLeftThird = clickX < rect.width * 0.35;
-    const isRightThird = clickX > rect.width * 0.65;
-
-    if (clickTimerRef.current) {
-      clearTimeout(clickTimerRef.current);
-      clickTimerRef.current = null;
-      if (isLeftThird) {
-        skip(-10);
-      } else if (isRightThird) {
-        skip(10);
-      } else {
-        toggleFullscreen();
-      }
-    } else {
-      clickTimerRef.current = setTimeout(() => {
-        clickTimerRef.current = null;
-        togglePlay();
-      }, 250);
-    }
-  };
-
   const handleSelectDub = (dub: any) => {
     const targetId = String(dub.subject_id || dub.detail_path || "");
     if (!targetId || targetId === String(id)) {
@@ -843,7 +782,7 @@ export default function CustomVideoPlayer({
     >
       {hasSource ? (
         <>
-          {/* Dual Video Elements */}
+          {/* Dual Video Elements for Seamless Crossfade */}
           {slotAUrl && (
             <div
               className={`${styles.videoSlot} ${
@@ -864,11 +803,9 @@ export default function CustomVideoPlayer({
                 onTimeUpdate={() => handleTimeUpdate("A")}
                 onLoadedMetadata={() => handleSlotReady("A")}
                 onCanPlay={() => handleSlotReady("A")}
-                onWaiting={() => handleWaiting("A")}
-                onPlaying={() => handlePlaying("A")}
-                onPause={() => handlePause("A")}
-                onError={() => handleError("A")}
-                onClick={handleContainerClick}
+                onPlaying={() => activeSlot === "A" && setIsPlaying(true)}
+                onPause={() => activeSlot === "A" && setIsPlaying(false)}
+                onError={() => activeSlot === "A" && setVideoError(true)}
               />
             </div>
           )}
@@ -893,11 +830,9 @@ export default function CustomVideoPlayer({
                 onTimeUpdate={() => handleTimeUpdate("B")}
                 onLoadedMetadata={() => handleSlotReady("B")}
                 onCanPlay={() => handleSlotReady("B")}
-                onWaiting={() => handleWaiting("B")}
-                onPlaying={() => handlePlaying("B")}
-                onPause={() => handlePause("B")}
-                onError={() => handleError("B")}
-                onClick={handleContainerClick}
+                onPlaying={() => activeSlot === "B" && setIsPlaying(true)}
+                onPause={() => activeSlot === "B" && setIsPlaying(false)}
+                onError={() => activeSlot === "B" && setVideoError(true)}
               />
             </div>
           )}
@@ -906,28 +841,10 @@ export default function CustomVideoPlayer({
         <div className={styles.noSource}>Loading streaming source…</div>
       )}
 
-      {/* Gesture Feedback Ripples */}
-      {gestureSide === "left" && (
-        <div className={`${styles.gestureRipple} ${styles.gestureRippleLeft}`}>
-          <div className={styles.gestureBadge}>
-            <RotateCcw size={28} />
-            <span>-10s</span>
-          </div>
-        </div>
-      )}
-      {gestureSide === "right" && (
-        <div className={`${styles.gestureRipple} ${styles.gestureRippleRight}`}>
-          <div className={styles.gestureBadge}>
-            <RotateCw size={28} />
-            <span>+10s</span>
-          </div>
-        </div>
-      )}
-
-      {/* Action Splash Animation */}
+      {/* Action Splash Animation (Single crisp play/pause indicator) */}
       {splashAction && (
         <div className={styles.actionSplash}>
-          {splashAction === "play" ? <Play size={38} fill="currentColor" /> : <Pause size={38} />}
+          {splashAction === "play" ? <Play size={36} fill="currentColor" /> : <Pause size={36} />}
         </div>
       )}
 
@@ -963,8 +880,12 @@ export default function CustomVideoPlayer({
         </div>
       )}
 
-      {/* HUD & Player Controls */}
-      <div className={`${styles.controlsWrapper} ${showControls ? styles.visible : ""}`}>
+      {/* Screen Click-To-Pause Overlay */}
+      <div
+        className={`${styles.controlsWrapper} ${showControls ? styles.visible : ""}`}
+        onClick={togglePlay}
+        onDoubleClick={toggleFullscreen}
+      >
         {/* Top Header */}
         <div className={styles.playerHeader} onClick={(e) => e.stopPropagation()}>
           <div className={styles.headerLeft}>

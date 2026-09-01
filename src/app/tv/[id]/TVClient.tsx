@@ -21,9 +21,11 @@ import {
   getCachedCore,
   getCachedTmdb,
   getCachedRecs,
+  getCachedSeasonEpisodes,
   fetchCore,
   fetchTmdb,
   fetchRecs,
+  fetchSeasonEpisodes,
   prefetchDownload,
   prefetchDetails,
 } from "@/services/contentCache";
@@ -314,7 +316,7 @@ export default function TVClient({ id }: TVClientProps) {
     if (!movie) return;
     let active = true;
 
-    // 1. Instant resolution from API payload if available
+    // 1. Instant resolution from API payload if available for current season
     const currentSeasonEps = (rawApiEpisodes || []).filter(
       (e: any) => (e.season_number === selectedSeason || e.season === selectedSeason)
     );
@@ -324,29 +326,32 @@ export default function TVClient({ id }: TVClientProps) {
       return;
     }
 
-    // 2. Secondary fallback to TMDB only if not in API payload
-    if (tmdbShowMeta?.id) {
-      setEpisodesLoading(true);
-      getSeasonEpisodes(tmdbShowMeta.id, selectedSeason)
-        .then((data) => {
-          if (!active) return;
-          setEpisodes(data || []);
-          setEpisodesLoading(false);
-        })
-        .catch(() => {
-          if (!active) return;
-          setEpisodes([]);
-          setEpisodesLoading(false);
-        });
-    } else {
-      setEpisodes([]);
+    // 2. Check cached season episodes
+    const cachedEps = getCachedSeasonEpisodes(activeId, selectedSeason);
+    if (cachedEps && cachedEps.length > 0) {
+      setEpisodes(cachedEps);
       setEpisodesLoading(false);
+      return;
     }
+
+    // 3. Fetch season episodes directly from API with TMDB fallback
+    setEpisodesLoading(true);
+    fetchSeasonEpisodes(activeId, selectedSeason, tmdbShowMeta?.id)
+      .then((data) => {
+        if (!active) return;
+        setEpisodes(data || []);
+        setEpisodesLoading(false);
+      })
+      .catch(() => {
+        if (!active) return;
+        setEpisodes([]);
+        setEpisodesLoading(false);
+      });
 
     return () => {
       active = false;
     };
-  }, [movie, selectedSeason, tmdbShowMeta?.id, rawApiEpisodes]);
+  }, [movie, activeId, selectedSeason, tmdbShowMeta?.id, rawApiEpisodes]);
 
   const currentSeasonInfo = useMemo(() => {
     return seasonMapping.mappedSeasons.find((s) => s.season === selectedSeason) || null;

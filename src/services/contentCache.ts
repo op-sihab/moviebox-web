@@ -438,6 +438,65 @@ export function getCachedDownload(id: string, season: number, episode: number): 
   return downloadCache.get(downloadKey(id, season, episode)) ?? null;
 }
 
+const seasonEpisodesCache = createLruCache<any[]>(50, 15 * 60 * 1000);
+const pendingSeasonEpisodes: Record<string, Promise<any[]>> = {};
+
+export function getCachedSeasonEpisodes(id: string, season: number): any[] | null {
+  return seasonEpisodesCache.get(`${id}:season:${season}`) ?? null;
+}
+
+export function fetchSeasonEpisodes(
+  id: string,
+  season: number,
+  tmdbId?: number
+): Promise<any[]> {
+  const key = `${id}:season:${season}`;
+  const cached = seasonEpisodesCache.get(key);
+  if (cached) return Promise.resolve(cached);
+
+  if (!pendingSeasonEpisodes[key]) {
+    pendingSeasonEpisodes[key] = (async () => {
+      // 1. Try direct API endpoint with ?season={season}
+      try {
+        const endpoint = buildDetailEndpoint(id, "tv");
+        const sep = endpoint.includes("?") ? "&" : "?";
+        const res = await fetch(`${endpoint}${sep}season=${season}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (Array.isArray(json?.episodes) && json.episodes.length > 0) {
+            seasonEpisodesCache.set(key, json.episodes);
+            return json.episodes;
+          }
+        }
+      } catch (e) {
+        console.warn("Direct API season fetch failed, trying fallback:", e);
+      }
+
+      // 2. Try TMDB fallback
+      if (tmdbId) {
+        try {
+          const { getSeasonEpisodes } = await import("@/services/tmdb");
+          const eps = await getSeasonEpisodes(tmdbId, season);
+          if (Array.isArray(eps) && eps.length > 0) {
+            seasonEpisodesCache.set(key, eps);
+            return eps;
+          }
+        } catch (e) {
+          console.warn("TMDB season fetch fallback failed:", e);
+        }
+      }
+
+      return [];
+    })();
+
+    pendingSeasonEpisodes[key].catch(() => {}).finally(() => {
+      delete pendingSeasonEpisodes[key];
+    });
+  }
+
+  return pendingSeasonEpisodes[key];
+}
+
 export function getCachedSubtitles(id: string, season: number, episode: number): any[] | null {
   return subtitlesCache.get(downloadKey(id, season, episode)) ?? null;
 }
@@ -452,11 +511,47 @@ export function fetchDownload(id: string, season: number, episode: number, type:
       const res = await fetch(buildDownloadEndpoint(id, season, episode, type));
       if (!res.ok) throw new Error("Failed to fetch download links");
       const json = await res.json();
-      const rawFiles = json?.files || [];
+      let rawFiles = json?.files || [];
       const rawSubs = json?.subtitles || [];
-      const files = rawFiles
+      let files = rawFiles
         .filter((f: any) => Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== ""))
         .sort((a: any, b: any) => (b.resolution_value || 0) - (a.resolution_value || 0));
+
+      // Continuous series fallback: If season > 1 and 0 files were returned, check if backend uses continuous season 1 numbering (like Naruto)
+      if (files.length === 0 && season > 1 && type === "tv") {
+        try {
+          const core = await fetchCore(id, "tv");
+          const seasonsList = Array.isArray(core.seasons)
+            ? core.seasons
+            : (Array.isArray((core.seasons as any)?.seasons) ? (core.seasons as any).seasons : []);
+
+          let cumulative = 0;
+          for (let i = 0; i < season - 1 && i < seasonsList.length; i++) {
+            const epCount = seasonsList[i].episode_count ?? seasonsList[i].maxEp ?? seasonsList[i].episodes_count ?? 0;
+            cumulative += epCount;
+          }
+
+          if (cumulative > 0) {
+            const absEp = cumulative + episode;
+            const res2 = await fetch(buildDownloadEndpoint(id, 1, absEp, "tv"));
+            if (res2.ok) {
+              const json2 = await res2.json();
+              const rawFiles2 = json2?.files || [];
+              const files2 = rawFiles2
+                .filter((f: any) => Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== ""))
+                .sort((a: any, b: any) => (b.resolution_value || 0) - (a.resolution_value || 0));
+              if (files2.length > 0) {
+                files = files2;
+                if (json2?.subtitles?.length > 0) {
+                  subtitlesCache.set(key, json2.subtitles);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Continuous series download fallback failed:", err);
+        }
+      }
       
       downloadCache.set(key, files);
       if (rawSubs.length > 0) {

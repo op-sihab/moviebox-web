@@ -11,9 +11,11 @@ import {
   getCachedCore,
   getCachedDownload,
   getCachedTmdb,
+  getCachedSeasonEpisodes,
   fetchCore,
   fetchDownload,
   fetchTmdb,
+  fetchSeasonEpisodes,
 } from "@/services/contentCache";
 import { buildSeasonMapping } from "@/services/seasonMapper";
 
@@ -195,65 +197,50 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   }, [isSeries, nextEp, id, seasonMapping]);
 
-  // Load episode metadata (Prefer direct backend payload, fallback to TMDB)
+  // Load episode metadata (Prefer direct backend payload / fetchSeasonEpisodes, fallback to TMDB)
   useEffect(() => {
     if (!isSeries || !movie?.title) return;
 
     let active = true;
 
-    // 1. Direct from API payload
+    // 1. Direct from API payload if available for current season
     if (rawApiEpisodes && rawApiEpisodes.length > 0) {
       const curEps = rawApiEpisodes.filter(
         (e: any) => e.season_number === currentSeason || e.season === currentSeason
       );
       if (curEps.length > 0) {
         setCurrentSeasonEpisodes(curEps);
-        if (nextEp && nextEp.season !== currentSeason) {
-          const nxtEps = rawApiEpisodes.filter(
-            (e: any) => e.season_number === nextEp.season || e.season === nextEp.season
-          );
-          setNextSeasonEpisodes(nxtEps);
-        }
         return;
       }
     }
 
-    // 2. Secondary fallback to TMDB client-side
-    const loadTMDBData = async () => {
-      try {
-        const { searchTVShow, getSeasonEpisodes } = await import("@/services/tmdb");
-        const meta = tmdbMeta || (await searchTVShow(movie.title));
-        if (!active || !meta?.id) return;
-
-        const targetTmdbSeason = seasonMapping.getTmdbSeason(currentSeason);
-        if (targetTmdbSeason !== null) {
-          const currentEps = await getSeasonEpisodes(meta.id, targetTmdbSeason);
-          if (!active) return;
-          setCurrentSeasonEpisodes(currentEps);
-        } else {
-          if (!active) return;
-          setCurrentSeasonEpisodes([]);
+    // 2. Direct from fast cached or fetched season episodes
+    fetchSeasonEpisodes(id, currentSeason, tmdbMeta?.id)
+      .then((eps) => {
+        if (!active) return;
+        if (Array.isArray(eps) && eps.length > 0) {
+          setCurrentSeasonEpisodes(eps);
         }
+      })
+      .catch((err) => {
+        console.warn("Watch page season episodes fetch failed:", err);
+      });
 
-        if (nextEp && nextEp.season !== currentSeason) {
-          const nextTargetTmdbSeason = seasonMapping.getTmdbSeason(nextEp.season);
-          if (nextTargetTmdbSeason !== null) {
-            const nextEps = await getSeasonEpisodes(meta.id, nextTargetTmdbSeason);
-            if (!active) return;
+    if (nextEp && nextEp.season !== currentSeason) {
+      fetchSeasonEpisodes(id, nextEp.season, tmdbMeta?.id)
+        .then((nextEps) => {
+          if (!active) return;
+          if (Array.isArray(nextEps) && nextEps.length > 0) {
             setNextSeasonEpisodes(nextEps);
           }
-        }
-      } catch (err) {
-        console.error("Watch page TMDB metadata fetch failed:", err);
-      }
-    };
+        })
+        .catch(() => {});
+    }
 
-    loadTMDBData();
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSeason, movie?.title, isSeries, seasonMapping, tmdbMeta, rawApiEpisodes, nextEp]);
+  }, [id, currentSeason, movie?.title, isSeries, tmdbMeta?.id, rawApiEpisodes, nextEp]);
 
   const currentEpisodeMeta = useMemo(() => {
     if (currentEpisode <= 0) return null;

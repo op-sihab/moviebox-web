@@ -18,9 +18,13 @@ export interface Movie {
   poster_path?: string;
   poster?: string;
   poster_w500?: string;
+  poster_url?: string;
+  cover_image?: string;
+  cover?: { url?: string };
   backdrop_path?: string;
   backdrop?: string;
   backdrop_w780?: string;
+  banner_image?: string;
   logo?: string;
   logo_w500?: string;
   logo_url?: string;
@@ -45,7 +49,13 @@ interface MovieCardProps {
 function MovieCard({ movie, priority = false }: MovieCardProps) {
   const router = useRouter();
   const title = movie.title || movie.name || "Untitled";
-  const imagePath = movie.poster_path || movie.backdrop_path;
+  const imagePath =
+    movie.poster_path ||
+    movie.poster ||
+    movie.poster_w500 ||
+    movie.backdrop_path ||
+    movie.backdrop ||
+    movie.cover?.url;
   const rawImageUrl = imagePath
     ? (imagePath.startsWith("http://") || imagePath.startsWith("https://") || imagePath.startsWith("//")
       ? imagePath

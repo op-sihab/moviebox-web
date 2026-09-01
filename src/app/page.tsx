@@ -22,9 +22,18 @@ export default async function Home() {
     failed = true;
   }
 
-  // 1. Extract hero item (Supports both new data.hero_banner and legacy operatingList BANNER)
+  // 1. Extract hero item (Supports new data.sections Banner, data.hero_banner, and legacy operatingList BANNER)
   let rawHero: any = null;
-  if (Array.isArray(data?.hero_banner) && data.hero_banner.length > 0) {
+  const bannerSection = Array.isArray(data?.sections)
+    ? data.sections.find(
+        (s: any) =>
+          s.section?.toLowerCase() === "banner" || s.title?.toLowerCase() === "banner"
+      )
+    : null;
+
+  if (bannerSection && Array.isArray(bannerSection.items) && bannerSection.items.length > 0) {
+    rawHero = bannerSection.items[0];
+  } else if (Array.isArray(data?.hero_banner) && data.hero_banner.length > 0) {
     rawHero = data.hero_banner[0];
   } else {
     const operatingList = data?.data?.operatingList || [];
@@ -36,26 +45,58 @@ export default async function Home() {
   // Normalize hero movie object
   let heroMovie: any = null;
   if (rawHero) {
-    const isTv = rawHero.media_type === "tv" || rawHero.subject?.subjectType === 2 || rawHero.subjectType === 2;
-    let heroId = String(rawHero.tmdb_id || rawHero.id || rawHero.slug || rawHero.detailPath || "");
+    const isTv =
+      rawHero.media_type === "tv" ||
+      rawHero.subject?.subjectType === 2 ||
+      rawHero.subjectType === 2 ||
+      rawHero.subject_type === "TV_SERIES" ||
+      rawHero.subject_type === 2;
+
+    let heroId = String(
+      rawHero.slug ||
+        rawHero.tmdb_id ||
+        rawHero.id ||
+        rawHero.detailPath ||
+        rawHero.subjectId ||
+        rawHero.subject_id ||
+        ""
+    );
     if (rawHero.detail_url) {
       let cleaned = rawHero.detail_url.replace(/^\/details\//, "").replace(/^details\//, "");
       cleaned = cleaned.replace(/^tmdb\//, "").split("?")[0];
       if (cleaned) heroId = cleaned;
     }
-    const heroBg = rawHero.backdrop || rawHero.backdrop_w780 || rawHero.image?.url || rawHero.subject?.cover?.url || rawHero.poster;
-    let heroLogo = rawHero.logo || rawHero.logo_w500 || null;
-    const heroTitle = rawHero.title || rawHero.name || "";
-    const heroRating = typeof rawHero.rating === "number" ? rawHero.rating : (rawHero.subject?.imdbRatingValue ? parseFloat(rawHero.subject.imdbRatingValue) : null);
+    const heroBg =
+      rawHero.backdrop ||
+      rawHero.banner_image ||
+      rawHero.backdrop_w780 ||
+      rawHero.image?.url ||
+      rawHero.subject?.cover?.url ||
+      rawHero.poster ||
+      rawHero.poster_url;
+    let heroLogo = rawHero.logo_w500 || rawHero.logo || rawHero.logo_url || null;
+    const heroTitle = rawHero.name || rawHero.title || "";
+    const heroRating =
+      typeof rawHero.rating === "number"
+        ? rawHero.rating
+        : rawHero.rating
+        ? parseFloat(rawHero.rating)
+        : rawHero.subject?.imdbRatingValue
+        ? parseFloat(rawHero.subject.imdbRatingValue)
+        : null;
     const heroDate = rawHero.release_date || rawHero.subject?.releaseDate || "";
     let heroOverview = rawHero.overview || rawHero.subject?.description || "";
-    const heroGenres = rawHero.genres || (rawHero.subject?.genre ? rawHero.subject.genre.split(",").map((g: string) => g.trim()) : []);
+    const heroGenres =
+      rawHero.genres ||
+      (rawHero.subject?.genre
+        ? rawHero.subject.genre.split(",").map((g: string) => g.trim())
+        : []);
 
-    // Enrich with TMDB fallback only if logo is missing
-    if (!heroLogo && heroTitle) {
+    // Enrich with TMDB fallback only if logo or overview is missing
+    if ((!heroLogo || !heroOverview) && heroTitle) {
       try {
         const tmdbMeta = isTv ? await searchTVShow(heroTitle) : await searchMovie(heroTitle);
-        if (tmdbMeta?.logo_url) heroLogo = tmdbMeta.logo_url;
+        if (!heroLogo && tmdbMeta?.logo_url) heroLogo = tmdbMeta.logo_url;
         if (!heroOverview && tmdbMeta?.overview) heroOverview = tmdbMeta.overview;
       } catch (err) {
         console.error("Hero TMDB fallback fetch failed:", err);
@@ -80,11 +121,20 @@ export default async function Home() {
   let carouselBlocks: Array<{ title: string; subjects: any[] }> = [];
   if (Array.isArray(data?.sections) && data.sections.length > 0) {
     carouselBlocks = data.sections
-      .filter((sec: any) => Array.isArray(sec.items) && sec.items.length > 0)
-      .map((sec: any) => ({
-        title: sec.title || "Featured",
-        subjects: sec.items.map(mapSubject).filter(Boolean),
-      }));
+      .filter(
+        (sec: any) =>
+          sec.section?.toLowerCase() !== "banner" &&
+          sec.title?.toLowerCase() !== "banner" &&
+          Array.isArray(sec.items) &&
+          sec.items.length > 0
+      )
+      .map((sec: any) => {
+        const rawTitle = sec.section || sec.title || "Featured";
+        return {
+          title: rawTitle.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim(),
+          subjects: sec.items.map(mapSubject).filter(Boolean),
+        };
+      });
   } else {
     const operatingList = data?.data?.operatingList || [];
     carouselBlocks = operatingList

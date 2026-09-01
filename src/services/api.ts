@@ -96,7 +96,12 @@ export async function getSearchSuggestions(query: string) {
  */
 export function mapSubject(s: any) {
   if (!s) return null;
-  const isTv = s.media_type === "tv" || s.subjectType === 2;
+  const isTv =
+    s.media_type === "tv" ||
+    s.subjectType === 2 ||
+    s.subject_type === "TV_SERIES" ||
+    s.subject_type === 2 ||
+    (s.total_seasons && s.total_seasons > 0);
 
   // Clean single-segment ID so Next.js dynamic routes /movie/[id] and /tv/[id] never 404
   let cleanId = "";
@@ -105,7 +110,7 @@ export function mapSubject(s: any) {
   else if (s.slug) cleanId = s.slug;
   else if (s.tmdb_id) cleanId = String(s.tmdb_id);
   else if (s.id) cleanId = String(s.id);
-  else if (s.subjectId) cleanId = String(s.subjectId);
+  else if (s.subjectId || s.subject_id) cleanId = String(s.subjectId || s.subject_id);
 
   if (cleanId.includes("/details/")) {
     cleanId = cleanId.split("/details/").pop() || cleanId;
@@ -116,11 +121,11 @@ export function mapSubject(s: any) {
   cleanId = cleanId.split("?")[0];
 
   const logoUrl = s.logo_w500 || s.logo || s.logo_url || null;
-  const backdropUrl = s.backdrop || s.backdrop_w780 || s.backdrop_path || null;
-  const posterUrl = s.poster || s.poster_w500 || s.cover?.url || s.poster_path || null;
+  const backdropUrl = s.backdrop || s.banner_image || s.backdrop_w780 || s.backdrop_path || null;
+  const posterUrl = s.poster_url || s.poster || s.poster_w500 || s.cover?.url || s.cover_image || s.poster_path || null;
 
   return {
-    id: s.tmdb_id || s.id || s.subjectId,
+    id: s.tmdb_id || s.id || s.subjectId || s.subject_id,
     title: s.title || s.name || s.original_title || "",
     poster_path: posterUrl,
     poster: posterUrl,
@@ -131,7 +136,7 @@ export function mapSubject(s: any) {
     vote_average:
       typeof s.rating === "number"
         ? s.rating
-        : parseFloat(s.imdbRatingValue || s.vote_average || "0"),
+        : parseFloat(s.rating || s.imdbRatingValue || s.vote_average || "0"),
     release_date: s.release_date || s.releaseDate,
     _id: cleanId,
     media_type: isTv ? "tv" : "movie",
@@ -140,6 +145,7 @@ export function mapSubject(s: any) {
     logo_url: logoUrl,
     logo: logoUrl,
     logo_w500: s.logo_w500 || logoUrl,
+    badge: s.badge || "",
   };
 }
 
@@ -153,12 +159,21 @@ export async function getBrowseSections() {
   // 1. New API format: data.sections
   if (Array.isArray(data?.sections) && data.sections.length > 0) {
     return data.sections
-      .filter((sec: any) => Array.isArray(sec.items) && sec.items.length > 0)
-      .map((sec: any) => ({
-        title: (sec.title || "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim(),
-        rawTitle: sec.title,
-        subjects: sec.items.map(mapSubject).filter(Boolean),
-      }));
+      .filter(
+        (sec: any) =>
+          sec.section?.toLowerCase() !== "banner" &&
+          sec.title?.toLowerCase() !== "banner" &&
+          Array.isArray(sec.items) &&
+          sec.items.length > 0
+      )
+      .map((sec: any) => {
+        const rawTitle = sec.section || sec.title || "Featured";
+        return {
+          title: rawTitle.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim(),
+          rawTitle,
+          subjects: sec.items.map(mapSubject).filter(Boolean),
+        };
+      });
   }
 
   // 2. Legacy API format: data.data.operatingList

@@ -217,20 +217,25 @@ export default function TVClient({ id }: TVClientProps) {
         setDubs(data.dubs || []);
         setSeasonsData(data.seasons);
 
-        // Auto-switch to Hindi dub by default ONLY on initial visit if user hasn't explicitly chosen a dub
+        // Default audio dub selection on initial visit: prefer Hindi, fallback to Original Audio
         if (!userSelectedDub.current) {
           const hindiDub = (data.dubs || []).find((d: any) =>
             /hindi/i.test(d.language_name || d.language || "")
           );
-          const isCurrentHindiDub = Boolean(
-            hindiDub && (
-              String(hindiDub.subject_id) === String(activeId) ||
-              String(hindiDub.detail_path) === String(activeId)
+          const originalDub = (data.dubs || []).find(
+            (d: any) => d.is_original || /original/i.test(d.language_name || d.language || "")
+          );
+          const targetDub = hindiDub || originalDub;
+
+          const isCurrentTarget = Boolean(
+            targetDub && (
+              String(targetDub.subject_id) === String(activeId) ||
+              String(targetDub.detail_path) === String(activeId)
             )
           );
 
-          if (hindiDub && !isCurrentHindiDub && (hindiDub.subject_id || hindiDub.detail_path)) {
-            const targetId = String(hindiDub.subject_id || hindiDub.detail_path);
+          if (targetDub && !isCurrentTarget && (targetDub.subject_id || targetDub.detail_path)) {
+            const targetId = String(targetDub.subject_id || targetDub.detail_path);
             if (targetId && targetId !== String(activeId)) {
               userSelectedDub.current = true;
               window.history.replaceState(null, "", `/tv/${targetId}`);
@@ -517,25 +522,22 @@ export default function TVClient({ id }: TVClientProps) {
                 </div>
                 <div className={styles.dubsList}>
                   {(() => {
-                    const sorted = [...dubs].sort((a: any, b: any) => {
-                      const aIsCurrent =
-                        String(a.subject_id) === String(activeId) ||
-                        String(a.detail_path) === String(activeId);
-                      const bIsCurrent =
-                        String(b.subject_id) === String(activeId) ||
-                        String(b.detail_path) === String(activeId);
-                      if (aIsCurrent && !bIsCurrent) return -1;
-                      if (!aIsCurrent && bIsCurrent) return 1;
-
+                    const sortedDubs = [...dubs].sort((a: any, b: any) => {
                       const aIsHindi = /hindi/i.test(a?.language_name || a?.language || "");
                       const bIsHindi = /hindi/i.test(b?.language_name || b?.language || "");
                       if (aIsHindi && !bIsHindi) return -1;
                       if (!aIsHindi && bIsHindi) return 1;
+
+                      const aIsOrig = a?.is_original || /original/i.test(a?.language_name || a?.language || "");
+                      const bIsOrig = b?.is_original || /original/i.test(b?.language_name || b?.language || "");
+                      if (aIsOrig && !bIsOrig) return -1;
+                      if (!aIsOrig && bIsOrig) return 1;
+
                       return 0;
                     });
                     const maxInitial = 4;
-                    const itemsToShow = showAllDubs ? sorted : sorted.slice(0, maxInitial);
-                    const remainingCount = sorted.length - maxInitial;
+                    const itemsToShow = showAllDubs ? sortedDubs : sortedDubs.slice(0, maxInitial);
+                    const remainingCount = sortedDubs.length - maxInitial;
 
                     return (
                       <>
@@ -569,7 +571,7 @@ export default function TVClient({ id }: TVClientProps) {
                             </button>
                           );
                         })}
-                        {sorted.length > maxInitial && (
+                        {sortedDubs.length > maxInitial && (
                           <button
                             type="button"
                             onClick={() => setShowAllDubs((prev) => !prev)}

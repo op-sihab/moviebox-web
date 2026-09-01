@@ -79,11 +79,16 @@ export default function BrandIntro({
       aria-live="polite"
       aria-label="Loading CineAura"
     >
+      <div className={styles.ambientVignette} aria-hidden="true" />
+      <div className={styles.anamorphicBeam} aria-hidden="true" />
+      <div className={styles.auraRing1} aria-hidden="true" />
+      <div className={styles.auraRing2} aria-hidden="true" />
       <div className={styles.glowPulse} aria-hidden="true" />
 
       <div className={styles.logoWrap} aria-hidden={finished || undefined}>
         {/* ===== Animated brand mark ===== */}
         <div className={styles.markContainer}>
+          <div className={styles.markBackdropGlow} />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo.png"
@@ -91,6 +96,7 @@ export default function BrandIntro({
             className={styles.markImg}
           />
           <div className={styles.markGlow} />
+          <div className={styles.markLensShine} />
         </div>
 
         {/* ===== Wordmark ===== */}
@@ -101,7 +107,11 @@ export default function BrandIntro({
           </span>
         </div>
 
-        <div className={styles.tagline}>C I N E M A T I C&nbsp;&nbsp;A U R A</div>
+        <div className={styles.tagline}>
+          <span>C I N E M A T I C</span>
+          <span className={styles.taglineDot}>•</span>
+          <span>A U R A</span>
+        </div>
 
         {/* Optional Title Logo Presentation */}
         {titleLogoUrl ? (

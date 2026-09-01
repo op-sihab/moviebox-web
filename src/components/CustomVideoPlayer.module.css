@@ -31,6 +31,26 @@
   box-shadow: none;
 }
 
+.videoSlot {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.videoSlotActive {
+  opacity: 1;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.videoSlotInactive {
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .video {
   width: 100%;
   height: 100%;
@@ -1164,4 +1184,16 @@
   .timeDisplay { font-size: 0.75rem; }
   .headerBadges { display: none; }
   .episodesDrawer, .audioDrawer { width: 100%; max-width: 100%; }
+}
+
+
+/* Skip buttons hidden on PC / Desktop */
+.skipBtnDesktopHidden {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .skipBtnDesktopHidden {
+    display: flex !important;
+  }
 }

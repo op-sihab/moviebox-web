@@ -12,19 +12,23 @@ interface BrandIntroProps {
   minDuration?: number;
   /** Hard cap — intro never blocks longer than this even if not ready (ms). */
   maxDuration?: number;
+  /** Content title logo URL (if available) */
+  titleLogoUrl?: string | null;
+  /** Content title */
+  contentTitle?: string | null;
 }
 
 /**
  * Netflix-style branding intro shown over the watch stage. It plays a cinematic
- * MOVIEBOX logo animation (an animated play/film mark + drawn wordmark) while
- * the video loads underneath, then fades out once the stream is ready
- * (respecting a minimum on-screen time) or when the max duration is hit.
+ * CineAura logo animation + optional content title logo while the video loads underneath.
  */
 export default function BrandIntro({
   ready,
   onFinish,
   minDuration = 2000,
   maxDuration = 6000,
+  titleLogoUrl,
+  contentTitle,
 }: BrandIntroProps) {
   const [exiting, setExiting] = useState(false);
   const [minElapsed, setMinElapsed] = useState(false);
@@ -98,6 +102,20 @@ export default function BrandIntro({
         </div>
 
         <div className={styles.tagline}>C I N E M A T I C&nbsp;&nbsp;A U R A</div>
+
+        {/* Optional Title Logo Presentation */}
+        {titleLogoUrl ? (
+          <div className={styles.contentLogoWrap}>
+            <span className={styles.presentingText}>NOW STREAMING</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={titleLogoUrl} alt={contentTitle || "Title"} className={styles.contentTitleLogo} />
+          </div>
+        ) : contentTitle ? (
+          <div className={styles.contentLogoWrap}>
+            <span className={styles.presentingText}>NOW STREAMING</span>
+            <span className={styles.contentTitleText}>{contentTitle}</span>
+          </div>
+        ) : null}
       </div>
 
       {!exiting && (

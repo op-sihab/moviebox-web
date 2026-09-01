@@ -60,8 +60,8 @@
   height: 100%;
   object-fit: cover;
   object-position: center 20%;
-  opacity: 0.92;
-  filter: brightness(0.95) contrast(1.03);
+  opacity: 0.96;
+  filter: brightness(0.98) contrast(1.02);
   transform: scale(1.01);
   transition: opacity 0.5s ease;
 }
@@ -70,25 +70,29 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(
-      90deg,
-      #08090c 0%,
-      rgba(8, 9, 12, 0.92) 28%,
-      rgba(8, 9, 12, 0.55) 55%,
-      rgba(8, 9, 12, 0.1) 80%,
-      transparent 100%
-    ),
+    /* Deep bottom transition into page content */
     linear-gradient(
       0deg,
-      #08090c 0%,
-      rgba(8, 9, 12, 0.85) 15%,
-      rgba(8, 9, 12, 0.3) 35%,
-      transparent 60%
+      var(--bg-primary, #0b0e14) 0%,
+      rgba(11, 14, 20, 0.96) 16%,
+      rgba(11, 14, 20, 0.6) 38%,
+      rgba(11, 14, 20, 0.2) 65%,
+      transparent 85%
     ),
+    /* Rich multi-stop left scrim: ensures text, meta, buttons & logo remain 100% readable on all backdrops */
+    linear-gradient(
+      90deg,
+      rgba(11, 14, 20, 0.88) 0%,
+      rgba(11, 14, 20, 0.75) 28%,
+      rgba(11, 14, 20, 0.4) 55%,
+      transparent 85%
+    ),
+    /* Top header shade under navbar */
     linear-gradient(
       180deg,
-      rgba(8, 9, 12, 0.65) 0%,
-      transparent 15%
+      rgba(11, 14, 20, 0.75) 0%,
+      rgba(11, 14, 20, 0.2) 22%,
+      transparent 42%
     );
 }
 
@@ -113,35 +117,26 @@
   line-height: 1.1;
   letter-spacing: -0.025em;
   color: #ffffff;
-  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 4px 24px rgba(0, 0, 0, 0.98), 0 1px 4px rgba(0, 0, 0, 0.95);
   margin: 0.2rem 0;
+  font-family: inherit;
 }
 
 .logoContainer {
-  margin: 0.2rem 0 0.4rem;
+  margin: 0.2rem 0 0.5rem;
   position: relative;
+  display: flex;
+  align-items: center;
   min-height: 55px;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-}
-
-.logoVisible {
-  opacity: 1;
-}
-
-.logoSkeleton {
-  width: 260px;
-  height: 65px;
-  border-radius: var(--radius-sm);
 }
 
 .titleLogo {
-  max-width: clamp(240px, 30vw, 340px);
-  max-height: 90px;
+  max-width: clamp(240px, 32vw, 360px);
+  max-height: 95px;
   width: auto;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.95));
+  filter: drop-shadow(0 4px 20px rgba(0, 0, 0, 0.98)) drop-shadow(0 0 35px rgba(0, 0, 0, 0.65));
 }
 
 /* Minimalist Inline Meta Line (Red Star • Year • Seasons • Episodes • Genres) */
@@ -153,7 +148,7 @@
   font-size: 0.94rem;
   font-weight: 550;
   color: #e2e8f0;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .ratingInline {
@@ -174,6 +169,10 @@
   font-size: 0.75rem;
 }
 
+.genreInline {
+  color: #94a3b8;
+}
+
 /* Clean Logline */
 .heroOverview {
   font-size: 1.02rem;
@@ -184,7 +183,7 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.95);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.98), 0 1px 3px rgba(0, 0, 0, 0.95);
   margin-top: 0.1rem;
 }
 
@@ -204,40 +203,64 @@
   font-weight: 750;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #94a3b8;
+  color: #cbd5e1;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
 }
 
 .dubsList {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.45rem;
   padding: 2px 0;
 }
 
 .dubBadge {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   padding: 0.28rem 0.8rem;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 550;
-  color: #cbd5e1;
+  color: #f1f5f9;
   white-space: nowrap;
   flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   transition: all 0.15s ease;
 }
 
 .dubBadge:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.3);
   color: #ffffff;
 }
 
 .dubActive {
-  background: rgba(229, 9, 20, 0.25) !important;
-  border-color: rgba(229, 9, 20, 0.55) !important;
-  color: #ff4a58 !important;
-  font-weight: 700 !important;
+  background: rgba(229, 9, 20, 0.3) !important;
+  border-color: rgba(229, 9, 20, 0.6) !important;
+  color: #ffffff !important;
+}
+
+.dubMoreBtn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: #ffffff;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.dubMoreBtn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
 }
 
 /* Action Buttons Bar */
@@ -337,22 +360,17 @@
 }
 
 .hubGrid {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 2.5rem;
-}
-
-@media (min-width: 980px) {
-  .hubGrid {
-    grid-template-columns: 1fr 340px;
-    gap: 3rem;
-  }
+  width: 100%;
 }
 
 .hubMain {
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
+  width: 100%;
   min-width: 0;
 }
 
@@ -660,59 +678,64 @@
   margin: 0;
 }
 
-/* Storyline Card */
-.storylineCard {
-  background: rgba(14, 16, 22, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem 1.75rem;
-  backdrop-filter: blur(12px);
-}
-
-.storylineText {
-  font-size: 1rem;
-  line-height: 1.68;
-  color: #cbd5e1;
-  margin: 0;
-}
-
-/* Top Billed Cast Rail */
+/* Cast Rail */
 .castSection {
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+}
+
+.castHeader {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.castCountPill {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3px 10px;
+  border-radius: 999px;
 }
 
 .castGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 1rem;
 }
 
 .castCard {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  background: rgba(14, 16, 22, 0.65);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
-  padding: 0.65rem 0.9rem;
-  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  gap: 0.95rem;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 0.75rem 1rem;
+  backdrop-filter: blur(16px);
+  transition: transform 0.25s var(--ease-out), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .castCard:hover {
-  transform: translateY(-2px);
-  background: rgba(22, 25, 34, 0.95);
-  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
 }
 
 .castAvatarWrapper {
   position: relative;
-  width: 46px;
-  height: 46px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.14);
+  background: #141923;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 .castAvatarImg {
@@ -725,91 +748,40 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1e222d 0%, #0e1015 100%);
-  border: 1px solid rgba(229, 9, 20, 0.4);
-  color: #ff3b49;
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  color: #f1f5f9;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
 }
 
 .castCardInfo {
   display: flex;
   flex-direction: column;
+  gap: 3px;
   min-width: 0;
 }
 
 .castNameText {
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 650;
   color: #ffffff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
 
 .castRoleText {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: #94a3b8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-/* Sidebar Info Specs */
-.hubSidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.specsCard {
-  background: rgba(14, 16, 22, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.15rem;
-  backdrop-filter: blur(12px);
-}
-
-.specsTitle {
-  font-size: 1.12rem;
-  font-weight: 750;
-  color: #ffffff;
-  letter-spacing: -0.01em;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin: 0;
-}
-
-.specItem {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.specLabel {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #64748b;
-}
-
-.specValue {
-  font-size: 0.92rem;
-  font-weight: 650;
-  color: #f1f5f9;
-}
-
-.specSubtitles {
-  font-size: 0.84rem;
-  line-height: 1.45;
-  color: #94a3b8;
+  font-weight: 450;
 }
 
 /* Recommendations */

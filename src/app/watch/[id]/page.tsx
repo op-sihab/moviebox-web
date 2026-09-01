@@ -28,5 +28,12 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   // Full-screen watch experience. WatchClient fetches details + stream links on
   // the client, reusing the warm contentCache (often already populated by the
   // details page) so the player appears instantly with no blocking server calls.
-  return <WatchClient id={id} initialSeason={initialSeason} initialEpisode={initialEpisode} />;
+  return (
+    <WatchClient
+      key={`${id}-${initialSeason}-${initialEpisode}`}
+      id={id}
+      initialSeason={initialSeason}
+      initialEpisode={initialEpisode}
+    />
+  );
 }

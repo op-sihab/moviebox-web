@@ -40,6 +40,7 @@ function shouldSkip(url: string): boolean {
   if (url.startsWith("data:")) return true;        // inline data URIs
   if (url.startsWith("blob:")) return true;        // object URLs
   if (url.includes("wsrv.nl")) return true;        // already optimized
+  if (url.includes("image.tmdb.org")) return true; // direct high-speed TMDB CDN
   return false;
 }
 

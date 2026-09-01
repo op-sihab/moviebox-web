@@ -27,15 +27,17 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const router = useRouter();
   const pathname = usePathname();
 
-  // Cache is read inside the first effect (not during render) so SSR and the
-  // first client render always match, avoiding hydration mismatches.
+  const cachedCore = getCachedCore(id);
+  const cachedTmdb = getCachedTmdb(id);
+
   const [movie, setMovie] = useState<any>(null);
   const [seasonsData, setSeasonsData] = useState<any>(null);
   const [tmdbMeta, setTmdbMeta] = useState<any>(null);
   const [dubs, setDubs] = useState<any[]>([]);
+  const [rawApiEpisodes, setRawApiEpisodes] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(true);
 
-  const isSeries = movie?.subjectType === 2 || seasonsData?.is_series || (seasonsData?.seasons && seasonsData.seasons.some((s: any) => s.season > 0)) || false;
+  const isSeries = movie?.subjectType === 2 || seasonsData?.is_series || (Array.isArray(seasonsData) && seasonsData.length > 0) || (seasonsData?.seasons && seasonsData.seasons.some((s: any) => s.season > 0 || s.season_number > 0)) || false;
 
   const [currentSeason, setCurrentSeason] = useState(initialSeason);
   const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
@@ -72,9 +74,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     if (core) {
       setMovie(core.movie);
       setSeasonsData(core.seasons);
+      if (core.episodes) setRawApiEpisodes(core.episodes);
       setDubs(core.dubs || []);
+      if (core.tmdbId && !cachedTmdb?.meta) {
+        setTmdbMeta({ id: core.tmdbId, name: core.movie?.title });
+      }
       setDetailsLoading(false);
-      if (core.movie?.title && !cachedTmdb?.meta) {
+      if (core.movie?.title && !cachedTmdb?.meta && !core.tmdbId) {
         fetchTmdb(id, "tv", core.movie.title)
           .then((res) => {
             if (active && res?.meta) setTmdbMeta(res.meta);
@@ -88,8 +94,12 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           if (!active) return;
           setMovie(data.movie);
           setSeasonsData(data.seasons);
+          if (data.episodes) setRawApiEpisodes(data.episodes);
           setDubs(data.dubs || []);
-          if (data.movie?.title) {
+          if (data.tmdbId) {
+            setTmdbMeta({ id: data.tmdbId, name: data.movie?.title });
+          }
+          if (data.movie?.title && !data.tmdbId) {
             fetchTmdb(id, "tv", data.movie.title)
               .then((res) => {
                 if (active && res?.meta) setTmdbMeta(res.meta);
@@ -126,8 +136,6 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   }, [files]);
 
   // 2. Fetch stream links whenever the season/episode (or series-ness) changes.
-  // Wait until details are loaded: isSeries is derived from the movie payload,
-  // so fetching earlier would request with wrong season/episode params.
   useEffect(() => {
     if (detailsLoading || !movie) return;
 
@@ -146,7 +154,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
 
     setLoadingFiles(true);
-    fetchDownload(id, s, e)
+    fetchDownload(id, s, e, isSeries ? "tv" : "movie")
       .then((f) => {
         if (active) setFiles(f);
       })
@@ -187,11 +195,30 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   }, [isSeries, nextEp, id, seasonMapping]);
 
-  // Load TMDB episode metadata
+  // Load episode metadata (Prefer direct backend payload, fallback to TMDB)
   useEffect(() => {
     if (!isSeries || !movie?.title) return;
 
     let active = true;
+
+    // 1. Direct from API payload
+    if (rawApiEpisodes && rawApiEpisodes.length > 0) {
+      const curEps = rawApiEpisodes.filter(
+        (e: any) => e.season_number === currentSeason || e.season === currentSeason
+      );
+      if (curEps.length > 0) {
+        setCurrentSeasonEpisodes(curEps);
+        if (nextEp && nextEp.season !== currentSeason) {
+          const nxtEps = rawApiEpisodes.filter(
+            (e: any) => e.season_number === nextEp.season || e.season === nextEp.season
+          );
+          setNextSeasonEpisodes(nxtEps);
+        }
+        return;
+      }
+    }
+
+    // 2. Secondary fallback to TMDB client-side
     const loadTMDBData = async () => {
       try {
         const { searchTVShow, getSeasonEpisodes } = await import("@/services/tmdb");
@@ -226,7 +253,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSeason, movie?.title, isSeries, seasonMapping, tmdbMeta]);
+  }, [currentSeason, movie?.title, isSeries, seasonMapping, tmdbMeta, rawApiEpisodes, nextEp]);
 
   const currentEpisodeMeta = useMemo(() => {
     if (currentEpisode <= 0) return null;
@@ -254,19 +281,19 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const currentSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason);
     if (!currentSeasonData) return [];
     
-    const count = currentSeasonData.episode_count || 0;
+    const count = currentSeasonData.episode_count || currentSeasonEpisodes.length || 0;
     const list = [];
     for (let i = 1; i <= count; i++) {
       const index = i - 1;
-      const tmdbEp =
-        currentSeasonEpisodes[index] ||
-        currentSeasonEpisodes.find((e: any) => e.episode_number === i);
+      const matchedEp =
+        currentSeasonEpisodes.find((e: any) => e.episode_number === i) ||
+        currentSeasonEpisodes[index];
       list.push({
         episode_number: i,
-        name: tmdbEp?.name || `Episode ${i}`,
-        overview: tmdbEp?.overview || "",
-        still_path: tmdbEp?.still_path || null,
-        runtime: tmdbEp?.runtime || null,
+        name: matchedEp?.name || `Episode ${i}`,
+        overview: matchedEp?.overview || "",
+        still_path: matchedEp?.still_w500 || matchedEp?.still_path || null,
+        runtime: matchedEp?.runtime_minutes || matchedEp?.runtime || null,
       });
     }
     return list;
@@ -326,7 +353,12 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
 
       {/* Branding intro overlay — sits on top until it finishes animating out */}
       {!introDone && !hasError && (
-        <BrandIntro ready={videoReady} onFinish={() => setIntroDone(true)} />
+        <BrandIntro
+          ready={videoReady}
+          onFinish={() => setIntroDone(true)}
+          titleLogoUrl={tmdbMeta?.logo_url || getCachedCore(id)?.logoUrl || null}
+          contentTitle={playerTitle}
+        />
       )}
 
       {/* Fallback skeleton loader if the intro finished but the stream is still resolving */}

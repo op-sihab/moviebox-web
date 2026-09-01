@@ -16,7 +16,14 @@ export interface Movie {
   title?: string;
   name?: string;
   poster_path?: string;
+  poster?: string;
+  poster_w500?: string;
   backdrop_path?: string;
+  backdrop?: string;
+  backdrop_w780?: string;
+  logo?: string;
+  logo_w500?: string;
+  logo_url?: string;
   vote_average?: number;
   release_date?: string;
   first_air_date?: string;
@@ -58,9 +65,16 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
     const cached = getCachedTmdb(String(id));
     if (cached) {
       return {
-        backdropUrl: cached.backdropUrl,
+        backdropUrl: cached.backdropUrl || (movie.backdrop || movie.backdrop_w780 || null),
         titledBackdropUrl: cached.titledBackdropUrl || cached.meta?.titled_backdrop_url || null,
-        logoUrl: cached.logoUrl,
+        logoUrl: cached.logoUrl || movie.logo_w500 || movie.logo || movie.logo_url || null,
+      };
+    }
+    if (movie.logo || movie.logo_w500 || movie.logo_url || movie.backdrop || movie.backdrop_w780) {
+      return {
+        backdropUrl: movie.backdrop || movie.backdrop_w780 || null,
+        titledBackdropUrl: null,
+        logoUrl: movie.logo_w500 || movie.logo || movie.logo_url || null,
       };
     }
     return null;
@@ -68,9 +82,9 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
 
   const posterUrl = img.poster(rawImageUrl);
   const bannerWithTitle = tmdbInfo?.titledBackdropUrl;
-  const effectiveBackdrop = bannerWithTitle || tmdbInfo?.backdropUrl || (movie.backdrop_path ? (movie.backdrop_path.startsWith("http") ? movie.backdrop_path : `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`) : rawImageUrl);
+  const effectiveBackdrop = bannerWithTitle || tmdbInfo?.backdropUrl || movie.backdrop || movie.backdrop_w780 || (movie.backdrop_path ? (movie.backdrop_path.startsWith("http") ? movie.backdrop_path : `https://image.tmdb.org/t/p/w780${movie.backdrop_path}`) : rawImageUrl);
   const hoverPreviewUrl = img.backdrop(effectiveBackdrop);
-  const titleLogoUrl = !bannerWithTitle && tmdbInfo?.logoUrl ? tmdbInfo.logoUrl : null;
+  const titleLogoUrl = !bannerWithTitle && (tmdbInfo?.logoUrl || movie.logo_w500 || movie.logo || movie.logo_url) ? (tmdbInfo?.logoUrl || movie.logo_w500 || movie.logo || movie.logo_url) : null;
 
   const date = movie.release_date || movie.first_air_date;
   const year = date ? new Date(date).getFullYear() : "";
@@ -119,7 +133,14 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
 
     if (id) {
       prefetchDetails(String(id), type === "tv" ? "tv" : "movie");
-      if (!tmdbInfo && title) {
+      const cached = getCachedTmdb(String(id));
+      if (cached?.backdropUrl || cached?.logoUrl) {
+        setTmdbInfo({
+          backdropUrl: cached.backdropUrl || tmdbInfo?.backdropUrl || null,
+          titledBackdropUrl: cached.titledBackdropUrl || cached.meta?.titled_backdrop_url || null,
+          logoUrl: cached.logoUrl || tmdbInfo?.logoUrl || null,
+        });
+      } else if (!tmdbInfo?.logoUrl && !movie.logo && !movie.logo_w500 && !movie.logo_url && title) {
         fetchTmdb(String(id), type === "tv" ? "tv" : "movie", title)
           .then((res) => {
             if (res) {
@@ -178,6 +199,11 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
   const handlePlayClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setIsHovered(false);
     if (playHref) {
       if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       router.push(playHref, { scroll: true });
@@ -187,6 +213,11 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
   const handleDetailsClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    setIsHovered(false);
     if (detailHref) {
       if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
       router.push(detailHref, { scroll: true });
@@ -196,7 +227,7 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
   if (!id) {
     return (
       <div className={styles.cardWrapper}>
-        <div className={`${styles.imageContainer} skeleton`}>
+        <div className={styles.imageContainer}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={posterUrl} alt={title} className={styles.image} />
         </div>
@@ -220,11 +251,16 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
         scroll={true}
         className={styles.cardLink}
         onClick={() => {
+          if (hoverTimerRef.current) {
+            clearTimeout(hoverTimerRef.current);
+            hoverTimerRef.current = null;
+          }
+          setIsHovered(false);
           if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         }}
       >
         <div className={styles.card}>
-          <div className={`${styles.imageContainer} skeleton`}>
+          <div className={styles.imageContainer}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={posterUrl}
@@ -316,7 +352,7 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
             <div className={styles.modalMediaWrapper}>
               {/* Skeleton shimmer before banner loads */}
               {!isBannerLoaded && (
-                <div className={`${styles.bannerSkeleton} skeleton`} />
+                <div className={styles.bannerSkeleton} />
               )}
 
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -327,18 +363,6 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
                 className={`${styles.modalImage} ${isBannerLoaded ? styles.bannerLoaded : styles.bannerLoading}`}
               />
               <div className={styles.modalGradient} />
-
-              {/* Standalone transparent title logo overlay if backdrop is textless */}
-              {titleLogoUrl && (
-                <div className={`${styles.modalLogoOverlay} ${isBannerLoaded ? styles.logoLoaded : styles.logoLoading}`}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={img.logo(titleLogoUrl)}
-                    alt={title}
-                    className={styles.modalTitleLogo}
-                  />
-                </div>
-              )}
             </div>
 
             {/* Modal Body & Quick Interactive Actions */}

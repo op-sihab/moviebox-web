@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import MovieClient from "./MovieClient";
+import { buildDetailEndpoint } from "@/services/api";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
-
-const API_BASE = process.env.API_URL || "https://movie-api.opsihab.tech";
 
 interface MinimalDetails {
   title?: string;
@@ -18,7 +17,8 @@ interface MinimalDetails {
 // feeds <head> metadata.
 async function fetchDetails(id: string): Promise<MinimalDetails | null> {
   try {
-    const res = await fetch(`${API_BASE}/details/${id}`, {
+    const url = buildDetailEndpoint(id, "movie");
+    const res = await fetch(url, {
       next: { revalidate: 300 },
       signal: AbortSignal.timeout(2500),
     });
@@ -58,5 +58,5 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function MovieDetails({ params }: PageProps) {
   const { id } = await params;
-  return <MovieClient id={id} />;
+  return <MovieClient key={id} id={id} />;
 }

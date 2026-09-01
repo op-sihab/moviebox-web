@@ -1,6 +1,6 @@
 import Carousel from "@/components/Carousel";
 import ContinueWatching from "@/components/ContinueWatching";
-import { getHomepage } from "@/services/api";
+import { getHomepage, mapSubject } from "@/services/api";
 import { searchMovie, searchTVShow } from "@/services/tmdb";
 import styles from "./page.module.css";
 import Link from "next/link";
@@ -22,36 +22,83 @@ export default async function Home() {
     failed = true;
   }
 
-  const operatingList = data?.data?.operatingList || [];
-
-  // Extract banner
-  const bannerBlock = operatingList.find((op: any) => op.type === "BANNER");
-  const banners = bannerBlock?.banner?.items || [];
-  const heroMovie = banners.length > 0 ? banners[0] : null;
-
-  // Enrich hero with TMDB title logo and description if available
-  let heroTmdb: any = null;
-  if (heroMovie?.title) {
-    try {
-      const isTv = heroMovie.subject?.subjectType === 2 || heroMovie.subjectType === 2;
-      heroTmdb = isTv
-        ? await searchTVShow(heroMovie.title)
-        : await searchMovie(heroMovie.title);
-    } catch (err) {
-      console.error("Hero TMDB fetch failed:", err);
-    }
+  // 1. Extract hero item (Supports both new data.hero_banner and legacy operatingList BANNER)
+  let rawHero: any = null;
+  if (Array.isArray(data?.hero_banner) && data.hero_banner.length > 0) {
+    rawHero = data.hero_banner[0];
+  } else {
+    const operatingList = data?.data?.operatingList || [];
+    const bannerBlock = operatingList.find((op: any) => op.type === "BANNER");
+    const banners = bannerBlock?.banner?.items || [];
+    rawHero = banners.length > 0 ? banners[0] : null;
   }
 
-  const heroLogoUrl = heroTmdb?.logo_url || null;
-  const heroOverview = heroMovie?.subject?.description || heroTmdb?.overview || "";
+  // Normalize hero movie object
+  let heroMovie: any = null;
+  if (rawHero) {
+    const isTv = rawHero.media_type === "tv" || rawHero.subject?.subjectType === 2 || rawHero.subjectType === 2;
+    let heroId = String(rawHero.tmdb_id || rawHero.id || rawHero.slug || rawHero.detailPath || "");
+    if (rawHero.detail_url) {
+      let cleaned = rawHero.detail_url.replace(/^\/details\//, "").replace(/^details\//, "");
+      cleaned = cleaned.replace(/^tmdb\//, "").split("?")[0];
+      if (cleaned) heroId = cleaned;
+    }
+    const heroBg = rawHero.backdrop || rawHero.backdrop_w780 || rawHero.image?.url || rawHero.subject?.cover?.url || rawHero.poster;
+    let heroLogo = rawHero.logo || rawHero.logo_w500 || null;
+    const heroTitle = rawHero.title || rawHero.name || "";
+    const heroRating = typeof rawHero.rating === "number" ? rawHero.rating : (rawHero.subject?.imdbRatingValue ? parseFloat(rawHero.subject.imdbRatingValue) : null);
+    const heroDate = rawHero.release_date || rawHero.subject?.releaseDate || "";
+    let heroOverview = rawHero.overview || rawHero.subject?.description || "";
+    const heroGenres = rawHero.genres || (rawHero.subject?.genre ? rawHero.subject.genre.split(",").map((g: string) => g.trim()) : []);
 
-  // Extract carousels
-  const carouselBlocks = operatingList.filter(
-    (op: any) =>
-      (op.type === "SUBJECTS_MOVIE" || op.type === "CUSTOM") &&
-      op.subjects &&
-      op.subjects.length > 0
-  );
+    // Enrich with TMDB fallback only if logo is missing
+    if (!heroLogo && heroTitle) {
+      try {
+        const tmdbMeta = isTv ? await searchTVShow(heroTitle) : await searchMovie(heroTitle);
+        if (tmdbMeta?.logo_url) heroLogo = tmdbMeta.logo_url;
+        if (!heroOverview && tmdbMeta?.overview) heroOverview = tmdbMeta.overview;
+      } catch (err) {
+        console.error("Hero TMDB fallback fetch failed:", err);
+      }
+    }
+
+    heroMovie = {
+      id: heroId,
+      detailPath: heroId,
+      title: heroTitle,
+      backdrop: heroBg,
+      logoUrl: heroLogo,
+      rating: heroRating,
+      releaseDate: heroDate,
+      overview: heroOverview,
+      mediaType: isTv ? "tv" : "movie",
+      genres: heroGenres,
+    };
+  }
+
+  // 2. Extract carousel blocks (Supports both new data.sections and legacy operatingList)
+  let carouselBlocks: Array<{ title: string; subjects: any[] }> = [];
+  if (Array.isArray(data?.sections) && data.sections.length > 0) {
+    carouselBlocks = data.sections
+      .filter((sec: any) => Array.isArray(sec.items) && sec.items.length > 0)
+      .map((sec: any) => ({
+        title: sec.title || "Featured",
+        subjects: sec.items.map(mapSubject).filter(Boolean),
+      }));
+  } else {
+    const operatingList = data?.data?.operatingList || [];
+    carouselBlocks = operatingList
+      .filter(
+        (op: any) =>
+          (op.type === "SUBJECTS_MOVIE" || op.type === "CUSTOM") &&
+          op.subjects &&
+          op.subjects.length > 0
+      )
+      .map((op: any) => ({
+        title: (op.title || "").replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").trim(),
+        subjects: op.subjects.map(mapSubject).filter(Boolean),
+      }));
+  }
 
   if (failed) {
     return (
@@ -77,7 +124,7 @@ export default async function Home() {
           <div className={styles.heroBackground}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={img.hero(heroMovie.image?.url || heroMovie.subject?.cover?.url)}
+              src={img.hero(heroMovie.backdrop)}
               alt={heroMovie.title}
               className={styles.heroImage}
               fetchPriority="high"
@@ -88,11 +135,11 @@ export default async function Home() {
           </div>
 
           <div className={`container ${styles.heroContent}`}>
-            {heroLogoUrl ? (
+            {heroMovie.logoUrl ? (
               <div className={styles.heroLogoWrapper}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={img.logo(heroLogoUrl)}
+                  src={img.logo(heroMovie.logoUrl)}
                   alt={heroMovie.title}
                   className={styles.heroTitleLogo}
                   fetchPriority="high"
@@ -102,26 +149,26 @@ export default async function Home() {
               <h1 className={styles.heroTitle}>{heroMovie.title}</h1>
             )}
             
-            {heroOverview && (
-              <p className={styles.heroOverview}>{heroOverview}</p>
+            {heroMovie.overview && (
+              <p className={styles.heroOverview}>{heroMovie.overview}</p>
             )}
 
             <div className={styles.heroMeta}>
-              {heroMovie.subject?.imdbRatingValue && (
+              {heroMovie.rating && (
                 <span className={styles.rating}>
                   <Star size={13} fill="currentColor" color="currentColor" />
-                  IMDb {heroMovie.subject.imdbRatingValue}
+                  IMDb {heroMovie.rating}
                 </span>
               )}
-              {heroMovie.subject?.releaseDate && (
-                <span className={styles.metaChip}>{heroMovie.subject.releaseDate.split("-")[0]}</span>
+              {heroMovie.releaseDate && (
+                <span className={styles.metaChip}>{heroMovie.releaseDate.split("-")[0]}</span>
               )}
               <span className={styles.metaChip}>
-                {heroMovie.subject?.subjectType === 2 ? "TV Series" : "Movie"}
+                {heroMovie.mediaType === "tv" ? "TV Series" : "Movie"}
               </span>
-              {heroMovie.subject?.genre && (
+              {heroMovie.genres && heroMovie.genres.length > 0 && (
                 <span className={styles.genreChip}>
-                  {heroMovie.subject.genre.split(",").slice(0, 3).join(" • ")}
+                  {heroMovie.genres.slice(0, 3).join(" • ")}
                 </span>
               )}
             </div>
@@ -135,7 +182,7 @@ export default async function Home() {
                 <span>Watch Now</span>
               </Link>
               <Link
-                href={`/${heroMovie.subject?.subjectType === 2 ? "tv" : "movie"}/${heroMovie.detailPath}`}
+                href={`/${heroMovie.mediaType === "tv" ? "tv" : "movie"}/${heroMovie.detailPath}`}
                 className={styles.infoButton}
               >
                 <Info size={18} />
@@ -149,17 +196,6 @@ export default async function Home() {
       <div className={`container ${styles.contentWrapper}`}>
         <ContinueWatching />
         {carouselBlocks.map((block: any, idx: number, arr: any[]) => {
-          const mappedMovies = block.subjects.map((s: any) => ({
-            id: s.subjectId,
-            title: s.title,
-            poster_path: s.cover?.url,
-            vote_average: parseFloat(s.imdbRatingValue),
-            release_date: s.releaseDate,
-            _id: s.detailPath, // Use detailPath as the _id for routing
-            media_type: s.subjectType === 2 ? "tv" : "movie",
-          }));
-
-          // Stable key from the section title (suffix only on duplicates)
           const duplicate = arr.slice(0, idx).some((s: any) => s.title === block.title);
           const isTrendingOrTop = idx === 0 || /top\s*10|trending|popular/i.test(block.title);
 
@@ -167,7 +203,7 @@ export default async function Home() {
             <Carousel
               key={duplicate ? `${block.title}-${idx}` : block.title}
               title={block.title}
-              movies={mappedMovies}
+              movies={block.subjects}
               eager={idx === 0}
               ranked={isTrendingOrTop}
             />

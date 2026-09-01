@@ -1,11 +1,20 @@
-import styles from "@/app/tv/[id]/page.module.css";
+"use client";
+
+import { useEffect } from "react";
+import styles from "@/app/movie/[id]/page.module.css";
 
 /**
  * Flagship Cinema DetailPageSkeleton
- * 100% perfectly matching the High-End Streamer Hero Showcase & Content Hub.
- * Zero layout shift, smooth shimmer animation.
+ * 100% perfectly matching the High-End Streamer Hero Showcase & Cast Hub.
+ * Zero layout shift, instant scroll to top, zero card skeleton flashes.
  */
 export default function DetailPageSkeleton() {
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, []);
+
   return (
     <div className={styles.main}>
       {/* 1. HERO STAGE SKELETON */}
@@ -25,7 +34,7 @@ export default function DetailPageSkeleton() {
         />
 
         <div className={styles.backdropContainer}>
-          <div className="skeleton" style={{ width: "100%", height: "100%", opacity: 0.3 }} />
+          <div className="skeleton" style={{ width: "100%", height: "100%", opacity: 0.2 }} />
           <div className={styles.backdropGradient} />
         </div>
 
@@ -35,83 +44,62 @@ export default function DetailPageSkeleton() {
             <div
               className="skeleton"
               style={{
-                width: "min(320px, 65%)",
-                height: 60,
+                width: "min(340px, 70%)",
+                height: 54,
                 borderRadius: 8,
-                margin: "0.2rem 0",
+                margin: "0.2rem 0 0.5rem",
               }}
             />
 
             {/* Minimalist Inline Meta Row */}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.2rem" }}>
-              <div className="skeleton" style={{ width: 45, height: 18, borderRadius: 4 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", margin: "0.2rem 0" }}>
+              <div className="skeleton" style={{ width: 48, height: 18, borderRadius: 4 }} />
               <div className="skeleton" style={{ width: 40, height: 18, borderRadius: 4 }} />
-              <div className="skeleton" style={{ width: 60, height: 18, borderRadius: 4 }} />
+              <div className="skeleton" style={{ width: 62, height: 18, borderRadius: 4 }} />
               <div className="skeleton" style={{ width: 110, height: 18, borderRadius: 4 }} />
             </div>
 
             {/* Overview Lines */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", maxWidth: "520px", marginTop: "0.3rem" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem", maxWidth: "560px", margin: "0.3rem 0 0.5rem" }}>
               <div className="skeleton" style={{ width: "100%", height: 15, borderRadius: 4 }} />
-              <div className="skeleton" style={{ width: "88%", height: 15, borderRadius: 4 }} />
-              <div className="skeleton" style={{ width: "60%", height: 15, borderRadius: 4 }} />
+              <div className="skeleton" style={{ width: "90%", height: 15, borderRadius: 4 }} />
+              <div className="skeleton" style={{ width: "65%", height: 15, borderRadius: 4 }} />
             </div>
 
             {/* Action Buttons Bar */}
-            <div className={styles.actionButtons} style={{ marginTop: "0.6rem" }}>
-              <div className="skeleton" style={{ width: 105, height: 42, borderRadius: 999 }} />
+            <div className={styles.actionButtons} style={{ marginTop: "0.8rem" }}>
+              <div className="skeleton" style={{ width: 115, height: 44, borderRadius: 999 }} />
               <div className="skeleton" style={{ width: 44, height: 44, borderRadius: "50%" }} />
-              <div className="skeleton" style={{ width: 120, height: 42, borderRadius: 999 }} />
-              <div className="skeleton" style={{ width: 105, height: 42, borderRadius: 999 }} />
+              <div className="skeleton" style={{ width: 125, height: 44, borderRadius: 999 }} />
+              <div className="skeleton" style={{ width: 110, height: 44, borderRadius: 999 }} />
             </div>
           </div>
         </div>
       </section>
 
-      {/* 2. DETAILS HUB SKELETON */}
+      {/* 2. CAST SECTION SKELETON */}
       <div className={`container ${styles.detailsHub}`}>
-        <div className={styles.hubGrid}>
-          {/* Main Column */}
-          <div className={styles.hubMain}>
-            {/* Storyline Skeleton */}
-            <div className={styles.storylineCard}>
-              <div className="skeleton" style={{ width: 100, height: 20, borderRadius: 4, marginBottom: "0.85rem" }} />
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-                <div className="skeleton" style={{ width: "100%", height: 15, borderRadius: 4 }} />
-                <div className="skeleton" style={{ width: "92%", height: 15, borderRadius: 4 }} />
-              </div>
-            </div>
-
-            {/* Cast Rail Skeleton */}
-            <div className={styles.castSection}>
-              <div className="skeleton" style={{ width: 140, height: 20, borderRadius: 4, marginBottom: "0.85rem" }} />
-              <div className={styles.castGrid}>
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className={styles.castCard}>
-                    <div className="skeleton" style={{ width: 46, height: 46, borderRadius: "50%", flexShrink: 0 }} />
-                    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", flex: 1 }}>
-                      <div className="skeleton" style={{ width: "70%", height: 14, borderRadius: 4 }} />
-                      <div className="skeleton" style={{ width: "45%", height: 12, borderRadius: 4 }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <section className={styles.castSection}>
+          <div className={styles.castHeader} style={{ marginBottom: "1.25rem" }}>
+            <div className="skeleton" style={{ width: 80, height: 24, borderRadius: 6 }} />
+            <div className="skeleton" style={{ width: 70, height: 20, borderRadius: 999 }} />
           </div>
 
-          {/* Sidebar Specs Skeleton */}
-          <aside className={styles.hubSidebar}>
-            <div className={styles.specsCard}>
-              <div className="skeleton" style={{ width: 130, height: 20, borderRadius: 4, marginBottom: "0.5rem" }} />
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className={styles.specItem}>
-                  <div className="skeleton" style={{ width: 75, height: 11, borderRadius: 4 }} />
-                  <div className="skeleton" style={{ width: 110, height: 15, borderRadius: 4 }} />
+          <div className={styles.castGrid}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+              <div key={i} className={styles.castCard}>
+                <div
+                  className="skeleton"
+                  style={{ width: 52, height: 52, borderRadius: "50%", flexShrink: 0 }}
+                />
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", flex: 1, minWidth: 0 }}>
+                  <div className="skeleton" style={{ width: "75%", height: 14, borderRadius: 4 }} />
+                  <div className="skeleton" style={{ width: "50%", height: 12, borderRadius: 4 }} />
                 </div>
-              ))}
-            </div>
-          </aside>
-        </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

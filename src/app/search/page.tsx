@@ -35,7 +35,7 @@ const DEBOUNCE_MS = 280;
 const PAGE_SIZE = 40;
 const RECENT_SEARCHES_KEY = "mbx:recent_searches";
 
-type SearchResult = ReturnType<typeof mapSubject>;
+type SearchResult = NonNullable<ReturnType<typeof mapSubject>>;
 
 const GENRE_CATEGORIES = [
   { name: "Action", icon: Zap, query: "Action", color: "#f59e0b" },
@@ -144,7 +144,7 @@ function SearchInner() {
           const data = await searchContent(trimmed, filterType, 1, controller.signal);
           if (cancelled || controller.signal.aborted) return;
           const subjects: any[] = data?.data?.items || [];
-          setResults(subjects.map(mapSubject));
+          setResults(subjects.map(mapSubject).filter((s): s is SearchResult => s !== null));
           setVisibleCount(PAGE_SIZE);
           saveRecentSearch(trimmed);
         } catch (err: any) {

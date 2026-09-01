@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getBrowseSections } from "@/services/api";
 import MovieCard from "@/components/MovieCard";
-import styles from "../browse.module.css";
+import styles from "@/app/browse.module.css";
 
 export const metadata: Metadata = {
   title: "TV Shows",

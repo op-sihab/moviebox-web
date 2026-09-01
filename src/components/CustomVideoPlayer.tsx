@@ -1149,7 +1149,7 @@ export default function CustomVideoPlayer({
                     <div style={{ position: "relative", width: "120px", flexShrink: 0, borderRadius: "6px", overflow: "hidden", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.1)" }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img 
-                        src={ep.still_path ? (ep.still_path.startsWith("http") ? ep.still_path : `https://image.tmdb.org/t/p/w300${ep.still_path}`) : (posterPath ? (posterPath.startsWith("http") ? posterPath : `https://image.tmdb.org/t/p/w500${posterPath}`) : "/placeholder.png")} 
+                        src={ep.still_w500 || ep.still_path ? ((ep.still_w500 || ep.still_path).startsWith("http") ? (ep.still_w500 || ep.still_path) : `https://image.tmdb.org/t/p/w300${ep.still_path}`) : (posterPath ? (posterPath.startsWith("http") ? posterPath : `https://image.tmdb.org/t/p/w500${posterPath}`) : "/placeholder.png")} 
                         alt={ep.name}
                         style={{ width: "100%", height: "100%", objectFit: "cover" }}
                         loading="lazy"

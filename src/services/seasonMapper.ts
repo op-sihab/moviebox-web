@@ -40,10 +40,22 @@ export function buildSeasonMapping(
   mbxSeasonsData: any,
   tmdbSeasonsList?: Array<{ season_number: number; episode_count: number; name?: string }> | null
 ): SeasonMapping {
-  const defaultMbxSeasons: Array<{ season: number; episode_count: number }> =
-    mbxSeasonsData?.seasons && mbxSeasonsData.seasons.length > 0
-      ? mbxSeasonsData.seasons
-      : [{ season: 1, episode_count: 1 }];
+  const rawList = Array.isArray(mbxSeasonsData)
+    ? mbxSeasonsData
+    : (Array.isArray(mbxSeasonsData?.seasons) ? mbxSeasonsData.seasons : []);
+
+  const defaultMbxSeasons: Array<{ season: number; episode_count: number; name?: string }> =
+    rawList.length > 0
+      ? rawList.map((s: any, idx: number) => {
+          const seasonNum = s.season_number ?? s.season ?? s.se ?? (idx + 1);
+          const epCount = s.episode_count ?? s.maxEp ?? s.episodes_count ?? 1;
+          return {
+            season: typeof seasonNum === "number" ? seasonNum : parseInt(seasonNum, 10) || (idx + 1),
+            episode_count: typeof epCount === "number" ? epCount : parseInt(epCount, 10) || 1,
+            name: s.name || `Season ${seasonNum}`,
+          };
+        })
+      : [{ season: 1, episode_count: 1, name: "Season 1" }];
 
   const validTmdbSeasons = (tmdbSeasonsList || []).filter(
     (s) => s && s.season_number > 0 && s.episode_count > 0
@@ -57,14 +69,15 @@ export function buildSeasonMapping(
     validTmdbSeasons.length > 1 &&
     firstMbxSeason &&
     firstTmdbSeason &&
-    firstMbxSeason.episode_count > firstTmdbSeason.episode_count + 3;
+    firstMbxSeason.episode_count > firstTmdbSeason.episode_count + 3 &&
+    defaultMbxSeasons.length === 1;
 
   if (!needsSplit) {
     const mappedSeasons: MappedSeason[] = defaultMbxSeasons.map((s) => ({
       season: s.season,
       tmdbSeason: s.season,
       episode_count: s.episode_count,
-      name: `Season ${s.season}`,
+      name: s.name || `Season ${s.season}`,
     }));
 
     return {

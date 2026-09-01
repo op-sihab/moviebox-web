@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import {
@@ -25,6 +25,7 @@ import {
   fetchTmdb,
   fetchRecs,
   prefetchDownload,
+  prefetchDetails,
 } from "@/services/contentCache";
 import { getSeasonEpisodes } from "@/services/tmdb";
 import { buildSeasonMapping } from "@/services/seasonMapper";
@@ -36,6 +37,10 @@ interface TVClientProps {
 }
 
 export default function TVClient({ id }: TVClientProps) {
+  const cachedCore = getCachedCore(id);
+  const cachedTmdb = getCachedTmdb(id);
+  const cachedRecs = getCachedRecs(id);
+
   const [activeId, setActiveId] = useState(id);
   const [retryToken, setRetryToken] = useState(0);
 
@@ -51,10 +56,12 @@ export default function TVClient({ id }: TVClientProps) {
   const [cast, setCast] = useState<any[]>([]);
   const [dubs, setDubs] = useState<any[]>([]);
   const [seasonsData, setSeasonsData] = useState<any>(null);
+  const [rawApiEpisodes, setRawApiEpisodes] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [tmdbBackdropUrl, setTmdbBackdropUrl] = useState<string | null>(null);
   const [tmdbShowMeta, setTmdbShowMeta] = useState<any>(null);
-  const [logoReady, setLogoReady] = useState(false);
+  const [showAllDubs, setShowAllDubs] = useState(false);
+  const userSelectedDub = useRef(false);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [episodes, setEpisodes] = useState<any[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
@@ -164,17 +171,35 @@ export default function TVClient({ id }: TVClientProps) {
       setCast(core.cast);
       setDubs(core.dubs || []);
       setSeasonsData(core.seasons);
-      if (core.seasons?.seasons?.[0]?.season) {
-        setSelectedSeason(core.seasons.seasons[0].season);
+      if (core.episodes) setRawApiEpisodes(core.episodes);
+      if (core.backdropUrl) setTmdbBackdropUrl(core.backdropUrl);
+      if (core.logoUrl) {
+        setTmdbShowMeta((prev: any) => ({ ...prev, logo_url: core.logoUrl }));
       }
+      if (core.tmdbId) {
+        setTmdbShowMeta((prev: any) => ({
+          ...prev,
+          id: core.tmdbId,
+          name: core.movie?.title,
+          logo_url: core.logoUrl || prev?.logo_url || null,
+        }));
+      }
+      const rawS = core.seasons;
+      const firstSeason = Array.isArray(rawS) && rawS.length > 0
+        ? (rawS[0].season_number ?? rawS[0].season ?? 1)
+        : (Array.isArray(rawS?.seasons) && rawS.seasons.length > 0
+          ? (rawS.seasons[0].season_number ?? rawS.seasons[0].season ?? 1)
+          : 1);
+      setSelectedSeason(firstSeason);
+      // Predictive Async Pre-warming: load S1:E1 or continue-watching stream in background
+      prefetchDownload(activeId, continueRecord?.season || firstSeason, continueRecord?.episode || 1);
       if (active) setLoading(false);
-    } else {
+    } else if (!movie) {
       setLoading(true);
     }
     if (tmdb) {
-      setTmdbBackdropUrl(tmdb.backdropUrl ?? null);
-      if (tmdb.meta?.logo_url !== tmdbShowMeta?.logo_url) setLogoReady(false);
-      setTmdbShowMeta(tmdb.meta ?? null);
+      if (tmdb.backdropUrl) setTmdbBackdropUrl(tmdb.backdropUrl);
+      setTmdbShowMeta((prev: any) => ({ ...prev, ...tmdb.meta, logo_url: tmdb.logoUrl || tmdb.meta?.logo_url || prev?.logo_url }));
     }
     if (recs) {
       setRecommendations(recs);
@@ -183,27 +208,69 @@ export default function TVClient({ id }: TVClientProps) {
       setRecsLoading(true);
     }
 
-    // CRITICAL PATH
-    fetchCore(activeId)
+    // CRITICAL PATH (Now includes direct backdrop, logo, and tmdb_id)
+    fetchCore(activeId, "tv")
       .then((data) => {
         if (!active) return;
         setMovie(data.movie);
         setCast(data.cast);
         setDubs(data.dubs || []);
         setSeasonsData(data.seasons);
-        if (data.seasons?.seasons?.[0]?.season) {
-          setSelectedSeason(data.seasons.seasons[0].season);
+
+        // Auto-switch to Hindi dub by default ONLY on initial visit if user hasn't explicitly chosen a dub
+        if (!userSelectedDub.current) {
+          const hindiDub = (data.dubs || []).find((d: any) =>
+            /hindi/i.test(d.language_name || d.language || "")
+          );
+          const isCurrentHindiDub = Boolean(
+            hindiDub && (
+              String(hindiDub.subject_id) === String(activeId) ||
+              String(hindiDub.detail_path) === String(activeId)
+            )
+          );
+
+          if (hindiDub && !isCurrentHindiDub && (hindiDub.subject_id || hindiDub.detail_path)) {
+            const targetId = String(hindiDub.subject_id || hindiDub.detail_path);
+            if (targetId && targetId !== String(activeId)) {
+              userSelectedDub.current = true;
+              window.history.replaceState(null, "", `/tv/${targetId}`);
+              setActiveId(targetId);
+              return;
+            }
+          }
         }
+        if (data.episodes) setRawApiEpisodes(data.episodes);
+        if (data.backdropUrl) setTmdbBackdropUrl(data.backdropUrl);
+        if (data.logoUrl) {
+          setTmdbShowMeta((prev: any) => ({ ...prev, logo_url: data.logoUrl }));
+        }
+        if (data.tmdbId) {
+          setTmdbShowMeta((prev: any) => ({
+            ...prev,
+            id: data.tmdbId,
+            name: data.movie?.title,
+            logo_url: data.logoUrl || prev?.logo_url || null,
+          }));
+        }
+        const rawFetchS = data.seasons;
+        const fetchFirstSeason = Array.isArray(rawFetchS) && rawFetchS.length > 0
+          ? (rawFetchS[0].season_number ?? rawFetchS[0].season ?? 1)
+          : (Array.isArray(rawFetchS?.seasons) && rawFetchS.seasons.length > 0
+            ? (rawFetchS.seasons[0].season_number ?? rawFetchS.seasons[0].season ?? 1)
+            : 1);
+        setSelectedSeason(fetchFirstSeason);
         setFetchError(false);
         setLoading(false);
+
+        // Predictive Async Pre-warming
+        prefetchDownload(activeId, continueRecord?.season || fetchFirstSeason, continueRecord?.episode || 1, "tv");
 
         if (data.movie?.title) {
           fetchTmdb(activeId, "tv", data.movie.title)
             .then((enr) => {
               if (!active) return;
               if (enr.backdropUrl) setTmdbBackdropUrl(enr.backdropUrl);
-              if (enr.meta?.logo_url) setLogoReady(false);
-              setTmdbShowMeta(enr.meta);
+              setTmdbShowMeta((prev: any) => ({ ...prev, ...enr.meta }));
             })
             .catch(() => {});
         }
@@ -242,6 +309,17 @@ export default function TVClient({ id }: TVClientProps) {
     if (!movie) return;
     let active = true;
 
+    // 1. Instant resolution from API payload if available
+    const currentSeasonEps = (rawApiEpisodes || []).filter(
+      (e: any) => (e.season_number === selectedSeason || e.season === selectedSeason)
+    );
+    if (currentSeasonEps.length > 0) {
+      setEpisodes(currentSeasonEps);
+      setEpisodesLoading(false);
+      return;
+    }
+
+    // 2. Secondary fallback to TMDB only if not in API payload
     if (tmdbShowMeta?.id) {
       setEpisodesLoading(true);
       getSeasonEpisodes(tmdbShowMeta.id, selectedSeason)
@@ -263,31 +341,31 @@ export default function TVClient({ id }: TVClientProps) {
     return () => {
       active = false;
     };
-  }, [movie, selectedSeason, tmdbShowMeta?.id]);
+  }, [movie, selectedSeason, tmdbShowMeta?.id, rawApiEpisodes]);
 
   const currentSeasonInfo = useMemo(() => {
     return seasonMapping.mappedSeasons.find((s) => s.season === selectedSeason) || null;
   }, [seasonMapping.mappedSeasons, selectedSeason]);
 
   const displayedCast = useMemo(() => {
-    const mbxActors = (cast || []).filter((c: any) => {
-      const char = (c.character || "").toLowerCase();
-      const isActorRole = !/director|writer|author|editor|producer|composer/i.test(char);
-      const hasAvatar = !!c.avatarUrl;
-      return isActorRole && hasAvatar;
-    });
+    const withAvatars = (cast || []).filter((c: any) => Boolean(c.avatarUrl));
+    if (withAvatars.length >= 3) return withAvatars;
 
-    if (mbxActors.length >= 3) {
-      return mbxActors;
+    const tmdbWithAvatars = (tmdbShowMeta?.cast || []).filter((c: any) => Boolean(c.avatarUrl));
+    if (tmdbWithAvatars.length >= 3) return tmdbWithAvatars;
+
+    if (cast && cast.length > 0 && tmdbShowMeta?.cast && tmdbShowMeta.cast.length > 0) {
+      const tmdbMap = new Map(tmdbShowMeta.cast.map((t: any) => [(t.name || "").toLowerCase().trim(), t.avatarUrl]));
+      const enriched = cast.map((c: any) => ({
+        ...c,
+        avatarUrl: c.avatarUrl || tmdbMap.get((c.name || "").toLowerCase().trim()) || "",
+      }));
+      const enrichedWithAvatars = enriched.filter((c: any) => Boolean(c.avatarUrl));
+      if (enrichedWithAvatars.length > 0) return enrichedWithAvatars;
     }
 
-    if (tmdbShowMeta?.cast && tmdbShowMeta.cast.length > 0) {
-      return tmdbShowMeta.cast;
-    }
-
-    if (mbxActors.length > 0) {
-      return mbxActors;
-    }
+    if (tmdbShowMeta?.cast && tmdbShowMeta.cast.length > 0) return tmdbShowMeta.cast;
+    if (withAvatars.length > 0) return withAvatars;
 
     const anyActors = (cast || []).filter((c: any) => {
       return !/director|writer|author|editor|producer|composer/i.test(c.character || "");
@@ -297,19 +375,21 @@ export default function TVClient({ id }: TVClientProps) {
   }, [cast, tmdbShowMeta?.cast]);
 
   const enrichedEpisodes = useMemo(() => {
-    const count = currentSeasonInfo?.episode_count || 0;
-    return Array.from({ length: count }, (_, index) => {
+    const count = currentSeasonInfo?.episode_count || episodes.length || 0;
+    const finalCount = count > 0 ? count : episodes.length;
+    return Array.from({ length: finalCount }, (_, index) => {
       const epNum = index + 1;
-      const tmdbEp =
-        episodes[index] ||
-        episodes.find((e: any) => e.episode_number === epNum);
+      const matchedEp =
+        episodes.find((e: any) => e.episode_number === epNum) ||
+        episodes[index];
       return {
         episode_number: epNum,
-        name: tmdbEp?.name || `Episode ${epNum}`,
-        overview: tmdbEp?.overview || `Episode ${epNum} of ${movie?.title || "TV Show"}.`,
-        still_path: tmdbEp?.still_path || null,
-        runtime: tmdbEp?.runtime || null,
-        air_date: tmdbEp?.air_date || null,
+        name: matchedEp?.name || `Episode ${epNum}`,
+        overview: matchedEp?.overview || `Episode ${epNum} of ${movie?.title || "TV Show"}.`,
+        still_path: matchedEp?.still_w500 || matchedEp?.still_path || null,
+        runtime: matchedEp?.runtime_minutes || matchedEp?.runtime || null,
+        air_date: matchedEp?.air_date || null,
+        stream_url: matchedEp?.stream_url || null,
       };
     });
   }, [currentSeasonInfo, episodes, movie]);
@@ -344,7 +424,7 @@ export default function TVClient({ id }: TVClientProps) {
   }
 
   const bgImage = tmdbBackdropUrl || movie.cover?.url;
-  const totalEpsCount = movie.totalEpisodes || seasonMapping.mappedSeasons.reduce((acc, s) => acc + s.episode_count, 0);
+  const totalEpsCount = movie.totalEpisodes || seasonMapping.totalEpisodes || seasonMapping.mappedSeasons.reduce((acc, s) => acc + s.episode_count, 0);
 
   return (
     <div className={styles.main}>
@@ -375,19 +455,20 @@ export default function TVClient({ id }: TVClientProps) {
         <div className={`container ${styles.heroContentWrapper}`}>
           <div className={styles.heroContent}>
             {/* Title Logo or Typographic Headline */}
-            {!tmdbShowMeta?.logo_url ? (
-              <h1 className={styles.heroTitle}>{movie.title}</h1>
-            ) : (
-              <div className={`${styles.logoContainer} ${logoReady ? styles.logoVisible : ""}`}>
-                {!logoReady && <div className={`${styles.logoSkeleton} skeleton`} />}
+            {tmdbShowMeta?.logo_url ? (
+              <div className={styles.logoContainer}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={img.logo(tmdbShowMeta.logo_url)}
                   alt={movie.title}
                   className={styles.titleLogo}
-                  onLoad={() => setLogoReady(true)}
+                  onError={() => {
+                    setTmdbShowMeta((prev: any) => ({ ...prev, logo_url: null }));
+                  }}
                 />
               </div>
+            ) : (
+              <h1 className={styles.heroTitle}>{movie.title}</h1>
             )}
 
             {/* Minimalist Inline Meta Line (Red Star • Year • Seasons • Episodes • Genres) */}
@@ -435,25 +516,71 @@ export default function TVClient({ id }: TVClientProps) {
                   <span>Available Audio Dubs</span>
                 </div>
                 <div className={styles.dubsList}>
-                  {dubs.map((d: any, di: number) => {
-                    const isCurrent =
-                      String(d.subject_id) === String(activeId) ||
-                      String(d.detail_path) === String(activeId) ||
-                      String(d.subject_id) === String(movie?.subjectId) ||
-                      String(d.detail_path) === String(movie?.detailPath);
+                  {(() => {
+                    const sorted = [...dubs].sort((a: any, b: any) => {
+                      const aIsCurrent =
+                        String(a.subject_id) === String(activeId) ||
+                        String(a.detail_path) === String(activeId);
+                      const bIsCurrent =
+                        String(b.subject_id) === String(activeId) ||
+                        String(b.detail_path) === String(activeId);
+                      if (aIsCurrent && !bIsCurrent) return -1;
+                      if (!aIsCurrent && bIsCurrent) return 1;
+
+                      const aIsHindi = /hindi/i.test(a?.language_name || a?.language || "");
+                      const bIsHindi = /hindi/i.test(b?.language_name || b?.language || "");
+                      if (aIsHindi && !bIsHindi) return -1;
+                      if (!aIsHindi && bIsHindi) return 1;
+                      return 0;
+                    });
+                    const maxInitial = 4;
+                    const itemsToShow = showAllDubs ? sorted : sorted.slice(0, maxInitial);
+                    const remainingCount = sorted.length - maxInitial;
+
                     return (
-                      <button
-                        key={d.subject_id ?? d.language ?? `dub-${di}`}
-                        onClick={() => {
-                          window.history.pushState(null, "", `/tv/${d.subject_id}`);
-                          setActiveId(d.subject_id);
-                        }}
-                        className={`${styles.dubBadge} ${isCurrent ? styles.dubActive : ""}`}
-                      >
-                        {d.language_name}
-                      </button>
+                      <>
+                        {itemsToShow.map((d: any, di: number) => {
+                          const targetId = String(d.subject_id || d.detail_path || "");
+                          const isCurrent = Boolean(
+                            (d.subject_id && String(d.subject_id) === String(activeId)) ||
+                            (d.detail_path && String(d.detail_path) === String(activeId)) ||
+                            (movie?.subjectId && String(d.subject_id) === String(movie.subjectId)) ||
+                            (movie?.detailPath && String(d.detail_path) === String(movie.detailPath))
+                          );
+                          return (
+                            <button
+                              key={d.subject_id ?? d.detail_path ?? d.language ?? `dub-${di}`}
+                              onClick={() => {
+                                if (targetId && targetId !== String(activeId)) {
+                                  userSelectedDub.current = true;
+                                  window.history.replaceState(null, "", `/tv/${targetId}`);
+                                  setActiveId(targetId);
+                                }
+                              }}
+                              onMouseEnter={() => {
+                                if (targetId) prefetchDetails(targetId, "tv");
+                              }}
+                              onTouchStart={() => {
+                                if (targetId) prefetchDetails(targetId, "tv");
+                              }}
+                              className={`${styles.dubBadge} ${isCurrent ? styles.dubActive : ""}`}
+                            >
+                              {d.language_name}
+                            </button>
+                          );
+                        })}
+                        {sorted.length > maxInitial && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllDubs((prev) => !prev)}
+                            className={styles.dubMoreBtn}
+                          >
+                            {showAllDubs ? "Show Less" : `+${remainingCount} More`}
+                          </button>
+                        )}
+                      </>
                     );
-                  })}
+                  })()}
                 </div>
               </div>
             )}
@@ -636,18 +763,15 @@ export default function TVClient({ id }: TVClientProps) {
               </div>
             )}
 
-            {/* Storyline Card */}
-            <div className={styles.storylineCard}>
-              <h3 className={styles.hubSectionTitle}>Storyline</h3>
-              <p className={styles.storylineText}>{movie.description || "No synopsis available."}</p>
-            </div>
-
-            {/* Top Billed Cast Rail */}
+            {/* Cast Rail */}
             {displayedCast.length > 0 && (
               <div className={styles.castSection}>
-                <h3 className={styles.hubSectionTitle}>Top Billed Cast</h3>
+                <div className={styles.castHeader}>
+                  <h3 className={styles.hubSectionTitle}>Cast</h3>
+                  <span className={styles.castCountPill}>{displayedCast.length} actors</span>
+                </div>
                 <div className={styles.castGrid}>
-                  {displayedCast.slice(0, 10).map((star: any, cIdx: number) => {
+                  {displayedCast.slice(0, 18).map((star: any, cIdx: number) => {
                     const avatarSrc = star.avatarUrl ? img.avatar(star.avatarUrl) : null;
                     return (
                       <div key={`${star.staffId || star.name || "cast"}-${cIdx}`} className={styles.castCard}>
@@ -685,54 +809,6 @@ export default function TVClient({ id }: TVClientProps) {
               </div>
             )}
           </div>
-
-          {/* Right Info Specs Rail */}
-          <aside className={styles.hubSidebar}>
-            <div className={styles.specsCard}>
-              <h4 className={styles.specsTitle}>Show Information</h4>
-
-              <div className={styles.specItem}>
-                <span className={styles.specLabel}>First Aired</span>
-                <span className={styles.specValue}>{movie.releaseDate || "Unknown"}</span>
-              </div>
-
-              <div className={styles.specItem}>
-                <span className={styles.specLabel}>Seasons</span>
-                <span className={styles.specValue}>{seasonMapping.mappedSeasons.length}</span>
-              </div>
-
-              <div className={styles.specItem}>
-                <span className={styles.specLabel}>Total Episodes</span>
-                <span className={styles.specValue}>{totalEpsCount}</span>
-              </div>
-
-              {movie.countryName && (
-                <div className={styles.specItem}>
-                  <span className={styles.specLabel}>Origin</span>
-                  <span className={styles.specValue}>{movie.countryName}</span>
-                </div>
-              )}
-
-              <div className={styles.specItem}>
-                <span className={styles.specLabel}>Quality</span>
-                <span className={styles.specValue}>4K Ultra HD • HDR</span>
-              </div>
-
-              <div className={styles.specItem}>
-                <span className={styles.specLabel}>Audio</span>
-                <span className={styles.specValue}>Dolby Atmos 5.1</span>
-              </div>
-
-              {movie.subtitles && (
-                <div className={styles.specItem}>
-                  <span className={styles.specLabel}>Subtitles</span>
-                  <span className={styles.specSubtitles}>
-                    {movie.subtitles.split(",").slice(0, 6).join(", ")}
-                  </span>
-                </div>
-              )}
-            </div>
-          </aside>
         </div>
 
         {/* 3. RECOMMENDATIONS SECTION */}

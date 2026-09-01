@@ -1,14 +1,14 @@
 :root {
-  /* Surfaces - Obsidian / Carbon Dark Theme */
-  --bg-primary: #08090c;
-  --bg-secondary: #0e1015;
-  --bg-card: rgba(18, 20, 26, 0.76);
-  --bg-glass: rgba(10, 12, 16, 0.82);
+  /* Surfaces - Refined Cinema Dark Theme (Soft, Smooth, Non-Muddy) */
+  --bg-primary: #0b0e14;
+  --bg-secondary: #121722;
+  --bg-card: rgba(22, 28, 42, 0.72);
+  --bg-glass: rgba(13, 17, 26, 0.85);
 
-  /* Text - Ultra clean & readable */
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  /* Text - Ultra clean, high-contrast & comfortable readability */
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
 
   /* Accent - Cinema Crimson Flame (Standard Streaming Flagship) */
   --accent-color: #e50914;

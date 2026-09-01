@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
-import { Play } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import CustomVideoPlayer from "@/components/CustomVideoPlayer";
 import BrandIntro from "@/components/BrandIntro";
@@ -29,8 +28,16 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const router = useRouter();
   const pathname = usePathname();
 
-  const cachedCore = getCachedCore(id);
-  const cachedTmdb = getCachedTmdb(id);
+  const [activeId, setActiveId] = useState(id);
+
+  useEffect(() => {
+    if (id && id !== activeId) {
+      setActiveId(id);
+    }
+  }, [id, activeId]);
+
+  const cachedCore = getCachedCore(activeId);
+  const cachedTmdb = getCachedTmdb(activeId);
 
   const [movie, setMovie] = useState<any>(null);
   const [seasonsData, setSeasonsData] = useState<any>(null);
@@ -39,7 +46,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const [rawApiEpisodes, setRawApiEpisodes] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(true);
 
-  const isSeries = movie?.subjectType === 2 || seasonsData?.is_series || (Array.isArray(seasonsData) && seasonsData.length > 0) || (seasonsData?.seasons && seasonsData.seasons.some((s: any) => s.season > 0 || s.season_number > 0)) || false;
+  const isSeries =
+    movie?.subjectType === 2 ||
+    seasonsData?.is_series ||
+    (Array.isArray(seasonsData) && seasonsData.length > 0) ||
+    (seasonsData?.seasons &&
+      seasonsData.seasons.some((s: any) => s.season > 0 || s.season_number > 0)) ||
+    false;
 
   const [currentSeason, setCurrentSeason] = useState(initialSeason);
   const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
@@ -47,7 +60,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const [loadingFiles, setLoadingFiles] = useState(true);
   const [selectedFile, setSelectedFile] = useState<any>(null);
 
-  // Branding intro: shown over the stage while the video warms up underneath.
+  // Branding intro
   const [introDone, setIntroDone] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
 
@@ -65,25 +78,25 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return buildSeasonMapping(seasonsData, tmdbMeta?.seasons);
   }, [seasonsData, tmdbMeta?.seasons]);
 
-  // 1. Load core details (movie + seasons) from the warm cache or network
+  // 1. Load core details from cache or network
   useEffect(() => {
     let active = true;
-    const core = getCachedCore(id);
-    const cachedTmdb = getCachedTmdb(id);
-    if (cachedTmdb?.meta) {
-      setTmdbMeta(cachedTmdb.meta);
+    const core = getCachedCore(activeId);
+    const cachedTmdbMeta = getCachedTmdb(activeId);
+    if (cachedTmdbMeta?.meta) {
+      setTmdbMeta(cachedTmdbMeta.meta);
     }
     if (core) {
       setMovie(core.movie);
       setSeasonsData(core.seasons);
       if (core.episodes) setRawApiEpisodes(core.episodes);
       setDubs(core.dubs || []);
-      if (core.tmdbId && !cachedTmdb?.meta) {
+      if (core.tmdbId && !cachedTmdbMeta?.meta) {
         setTmdbMeta({ id: core.tmdbId, name: core.movie?.title });
       }
       setDetailsLoading(false);
-      if (core.movie?.title && !cachedTmdb?.meta && !core.tmdbId) {
-        fetchTmdb(id, "tv", core.movie.title)
+      if (core.movie?.title && !cachedTmdbMeta?.meta && !core.tmdbId) {
+        fetchTmdb(activeId, "tv", core.movie.title)
           .then((res) => {
             if (active && res?.meta) setTmdbMeta(res.meta);
           })
@@ -91,7 +104,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       }
     } else {
       setDetailsLoading(true);
-      fetchCore(id)
+      fetchCore(activeId)
         .then((data) => {
           if (!active) return;
           setMovie(data.movie);
@@ -102,7 +115,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
             setTmdbMeta({ id: data.tmdbId, name: data.movie?.title });
           }
           if (data.movie?.title && !data.tmdbId) {
-            fetchTmdb(id, "tv", data.movie.title)
+            fetchTmdb(activeId, "tv", data.movie.title)
               .then((res) => {
                 if (active && res?.meta) setTmdbMeta(res.meta);
               })
@@ -117,18 +130,18 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [activeId]);
 
-  // Sync selectedFile when files change (e.g. changing episode or initial load)
+  // Sync selectedFile when files change
   useEffect(() => {
     const playable = (files || []).filter(
-      (f: any) => Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== "")
+      (f: any) =>
+        Boolean(f?.stream_link && typeof f.stream_link === "string" && f.stream_link.trim() !== "")
     );
     if (playable.length === 0) {
       setSelectedFile(null);
       return;
     }
-    // Prefer highest available resolution (1080p > 720p > 480p > 360p)
     const defaultFile =
       playable.find((f: any) => f.resolution === "1080p") ||
       playable.find((f: any) => f.resolution === "720p") ||
@@ -137,7 +150,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     setSelectedFile(defaultFile);
   }, [files]);
 
-  // 2. Fetch stream links whenever the season/episode (or series-ness) changes.
+  // 2. Fetch stream links whenever the season/episode changes
   useEffect(() => {
     if (detailsLoading || !movie) return;
 
@@ -148,7 +161,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const s = backendCoords.mbxSeason;
     const e = backendCoords.mbxEpisode;
 
-    const cached = getCachedDownload(id, s, e);
+    const cached = getCachedDownload(activeId, s, e);
     if (cached) {
       setFiles(cached);
       setLoadingFiles(false);
@@ -156,7 +169,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
 
     setLoadingFiles(true);
-    fetchDownload(id, s, e, isSeries ? "tv" : "movie")
+    fetchDownload(activeId, s, e, isSeries ? "tv" : "movie")
       .then((f) => {
         if (active) setFiles(f);
       })
@@ -168,20 +181,23 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSeason, currentEpisode, id, isSeries, detailsLoading, movie, seasonMapping]);
+  }, [currentSeason, currentEpisode, activeId, isSeries, detailsLoading, movie, seasonMapping]);
 
-  // Determine the next episode (within or across seasons)
+  // Determine next episode
   const nextEp = useMemo(() => {
     if (!isSeries || !seasonMapping.mappedSeasons.length) return null;
 
-    const currentSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason);
+    const currentSeasonData = seasonMapping.mappedSeasons.find(
+      (s) => s.season === currentSeason
+    );
     if (!currentSeasonData) return null;
 
     if (currentEpisode < currentSeasonData.episode_count) {
       return { season: currentSeason, episode: currentEpisode + 1 };
     } else {
-      const nextSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason + 1);
+      const nextSeasonData = seasonMapping.mappedSeasons.find(
+        (s) => s.season === currentSeason + 1
+      );
       if (nextSeasonData && nextSeasonData.episode_count > 0) {
         return { season: currentSeason + 1, episode: 1 };
       }
@@ -189,50 +205,45 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return null;
   }, [isSeries, seasonMapping, currentSeason, currentEpisode]);
 
-  // Prefetch the next episode's stream links so "Next" is instant
+  // Prefetch next episode
   useEffect(() => {
     if (isSeries && nextEp) {
       const backend = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
-      fetchDownload(id, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
+      fetchDownload(activeId, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
     }
-  }, [isSeries, nextEp, id, seasonMapping]);
+  }, [isSeries, nextEp, activeId, seasonMapping]);
 
-  // Load episode metadata (Prefer direct backend payload / fetchSeasonEpisodes, fallback to TMDB)
+  // Load episode metadata
   useEffect(() => {
-    if (!isSeries || !movie?.title) return;
+    if (!isSeries) return;
 
     let active = true;
+    const backendCoords = seasonMapping.mapUiToBackend(currentSeason, currentEpisode);
 
-    // 1. Direct from API payload if available for current season
-    if (rawApiEpisodes && rawApiEpisodes.length > 0) {
-      const curEps = rawApiEpisodes.filter(
-        (e: any) => e.season_number === currentSeason || e.season === currentSeason
-      );
-      if (curEps.length > 0) {
-        setCurrentSeasonEpisodes(curEps);
-        return;
-      }
+    const cachedSeasonEps = getCachedSeasonEpisodes(activeId, backendCoords.mbxSeason);
+    if (cachedSeasonEps && cachedSeasonEps.length > 0) {
+      setCurrentSeasonEpisodes(cachedSeasonEps);
+    } else {
+      fetchSeasonEpisodes(activeId, backendCoords.mbxSeason, tmdbMeta?.id)
+        .then((eps) => {
+          if (active && eps && eps.length > 0) {
+            setCurrentSeasonEpisodes(eps);
+          } else if (active && rawApiEpisodes && rawApiEpisodes.length > 0) {
+            setCurrentSeasonEpisodes(rawApiEpisodes);
+          }
+        })
+        .catch(() => {
+          if (active && rawApiEpisodes && rawApiEpisodes.length > 0) {
+            setCurrentSeasonEpisodes(rawApiEpisodes);
+          }
+        });
     }
 
-    // 2. Direct from fast cached or fetched season episodes
-    fetchSeasonEpisodes(id, currentSeason, tmdbMeta?.id)
-      .then((eps) => {
-        if (!active) return;
-        if (Array.isArray(eps) && eps.length > 0) {
-          setCurrentSeasonEpisodes(eps);
-        }
-      })
-      .catch((err) => {
-        console.warn("Watch page season episodes fetch failed:", err);
-      });
-
     if (nextEp && nextEp.season !== currentSeason) {
-      fetchSeasonEpisodes(id, nextEp.season, tmdbMeta?.id)
-        .then((nextEps) => {
-          if (!active) return;
-          if (Array.isArray(nextEps) && nextEps.length > 0) {
-            setNextSeasonEpisodes(nextEps);
-          }
+      const nextBackendCoords = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
+      fetchSeasonEpisodes(activeId, nextBackendCoords.mbxSeason, tmdbMeta?.id)
+        .then((eps) => {
+          if (active && eps) setNextSeasonEpisodes(eps);
         })
         .catch(() => {});
     }
@@ -240,34 +251,41 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-  }, [id, currentSeason, movie?.title, isSeries, tmdbMeta?.id, rawApiEpisodes, nextEp]);
+  }, [isSeries, currentSeason, currentEpisode, activeId, seasonMapping, tmdbMeta?.id, nextEp, rawApiEpisodes]);
 
   const currentEpisodeMeta = useMemo(() => {
-    if (currentEpisode <= 0) return null;
+    if (!isSeries || !currentSeasonEpisodes.length) return null;
     return (
-      currentSeasonEpisodes[currentEpisode - 1] ||
       currentSeasonEpisodes.find((e: any) => e.episode_number === currentEpisode) ||
+      currentSeasonEpisodes[currentEpisode - 1] ||
       null
     );
-  }, [currentSeasonEpisodes, currentEpisode]);
+  }, [isSeries, currentSeasonEpisodes, currentEpisode]);
 
   const nextEpisodeMeta = useMemo(() => {
-    if (!nextEp) return null;
-    const targetEpisodes =
-      nextEp.season === currentSeason ? currentSeasonEpisodes : nextSeasonEpisodes;
-    if (nextEp.episode <= 0) return null;
-    return (
-      targetEpisodes[nextEp.episode - 1] ||
-      targetEpisodes.find((e: any) => e.episode_number === nextEp.episode) ||
-      null
-    );
-  }, [nextEp, currentSeason, currentSeasonEpisodes, nextSeasonEpisodes]);
+    if (!isSeries || !nextEp) return null;
+    if (nextEp.season === currentSeason) {
+      return (
+        currentSeasonEpisodes.find((e: any) => e.episode_number === nextEp.episode) ||
+        currentSeasonEpisodes[nextEp.episode - 1] ||
+        null
+      );
+    } else {
+      return (
+        nextSeasonEpisodes.find((e: any) => e.episode_number === nextEp.episode) ||
+        nextSeasonEpisodes[nextEp.episode - 1] ||
+        null
+      );
+    }
+  }, [isSeries, nextEp, currentSeason, currentSeasonEpisodes, nextSeasonEpisodes]);
 
   const enrichedEpisodes = useMemo(() => {
-    if (!isSeries || !seasonMapping.mappedSeasons.length) return [];
-    const currentSeasonData = seasonMapping.mappedSeasons.find((s) => s.season === currentSeason);
+    if (!isSeries) return [];
+    const currentSeasonData = seasonMapping.mappedSeasons.find(
+      (s) => s.season === currentSeason
+    );
     if (!currentSeasonData) return [];
-    
+
     const count = currentSeasonData.episode_count || currentSeasonEpisodes.length || 0;
     const list = [];
     for (let i = 1; i <= count; i++) {
@@ -298,32 +316,55 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     }
   };
 
-  const handleDubChange = (targetDub: any) => {
+  // Seamless in-place audio dub switch without full-page navigation
+  const handleDubChange = async (targetDub: any) => {
     const targetId = String(targetDub.subject_id || targetDub.detail_path || "");
-    if (targetId && targetId !== String(id)) {
-      const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
-      router.push(`/watch/${targetId}${query}`);
+    if (!targetId || targetId === String(activeId)) return;
+
+    setActiveId(targetId);
+
+    const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/watch/${targetId}${query}`);
+    }
+
+    const backendCoords = isSeries
+      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
+      : { mbxSeason: 0, mbxEpisode: 0 };
+    const s = backendCoords.mbxSeason;
+    const e = backendCoords.mbxEpisode;
+
+    const cached = getCachedDownload(targetId, s, e);
+    if (cached && cached.length > 0) {
+      setFiles(cached);
+    } else {
+      try {
+        const newFiles = await fetchDownload(targetId, s, e, isSeries ? "tv" : "movie");
+        if (newFiles && newFiles.length > 0) {
+          setFiles(newFiles);
+        }
+      } catch (err) {
+        console.error("Failed to switch audio stream", err);
+      }
     }
   };
 
-  const backHref = `/${isSeries ? "tv" : "movie"}/${id}`;
+  const backHref = `/${isSeries ? "tv" : "movie"}/${activeId}`;
   const playerTitle = movie?.title || "Now Playing";
   const episodeLabel = isSeries
-    ? `S${currentSeason} · E${currentEpisode}${currentEpisodeMeta?.name ? ` · ${currentEpisodeMeta.name}` : ""}`
+    ? `S${currentSeason} · E${currentEpisode}${
+        currentEpisodeMeta?.name ? ` · ${currentEpisodeMeta.name}` : ""
+      }`
     : undefined;
 
-  const hasError = !detailsLoading && (!movie || (!loadingFiles && (!files || files.length === 0)));
+  const hasError =
+    !detailsLoading && (!movie || (!loadingFiles && (!files || files.length === 0)));
 
-  // Full-screen stage. The branding intro plays immediately while details +
-  // stream links resolve and the video buffers underneath, then fades out once
-  // the video is ready (or the intro's max duration elapses).
   return (
     <div className={styles.stage}>
-      {/* The player mounts as soon as stream links exist, so the video buffers
-          behind the intro. */}
       {movie && !loadingFiles && files && files.length > 0 && (
         <CustomVideoPlayer
-          id={id}
+          id={activeId}
           mediaType={isSeries ? "tv" : "movie"}
           season={isSeries ? currentSeason : undefined}
           episode={isSeries ? currentEpisode : undefined}
@@ -337,7 +378,11 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           onQualityChange={setSelectedFile}
           title={playerTitle}
           episodeTitle={episodeLabel}
-          nextEpisodeTitle={isSeries && nextEp ? (nextEpisodeMeta?.name || `Episode ${nextEp.episode}`) : undefined}
+          nextEpisodeTitle={
+            isSeries && nextEp
+              ? nextEpisodeMeta?.name || `Episode ${nextEp.episode}`
+              : undefined
+          }
           onNextEpisode={isSeries && nextEp ? handleNextEpisode : undefined}
           fillParent
           backHref={backHref}
@@ -347,50 +392,61 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
         />
       )}
 
-      {/* Branding intro overlay — sits on top until it finishes animating out */}
+      {/* Branding intro overlay */}
       {!introDone && !hasError && (
         <BrandIntro
           ready={videoReady}
           onFinish={() => setIntroDone(true)}
-          titleLogoUrl={tmdbMeta?.logo_url || getCachedCore(id)?.logoUrl || null}
+          titleLogoUrl={tmdbMeta?.logo_url || getCachedCore(activeId)?.logoUrl || null}
           contentTitle={playerTitle}
         />
       )}
 
-      {/* Fallback skeleton loader if the intro finished but the stream is still resolving */}
+      {/* Fallback skeleton loader */}
       {introDone && !hasError && (loadingFiles || (detailsLoading && !movie)) && (
         <div className={styles.stageLoader}>
           <Link href={backHref} className={styles.floatingBack} title="Back to details">
             <span>←</span>
           </Link>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem", width: "80%", maxWidth: "400px" }}>
-            <div className="skeleton" style={{ width: "64px", height: "64px", borderRadius: "50%", opacity: 0.2 }} />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "1rem",
+              width: "80%",
+              maxWidth: "400px",
+            }}
+          >
+            <div
+              className="skeleton"
+              style={{ width: "64px", height: "64px", borderRadius: "50%", opacity: 0.2 }}
+            />
             <span className={styles.stageLoaderText}>{playerTitle}</span>
-            <div className="skeleton" style={{ width: "100%", height: "4px", borderRadius: "2px", opacity: 0.2 }} />
+            <div
+              className="skeleton"
+              style={{ width: "100%", height: "4px", borderRadius: "2px", opacity: 0.2 }}
+            />
           </div>
         </div>
       )}
 
-      {/* Error state (only once the intro is not blocking the view) */}
+      {/* Error state */}
       {hasError && (
-        <div className={styles.errorContainer}>
-          {!movie ? (
-            <>
-              <h1>Content not found</h1>
-              <Link href="/" className={styles.backHome}>
-                Back to Home
-              </Link>
-            </>
-          ) : (
-            <>
-              <Play size={48} className={styles.disabledPlayIcon} />
-              <h2>Streaming is currently unavailable</h2>
-              <p>No video links were found for this content. Please try again later.</p>
-              <Link href={backHref} className={styles.backHome}>
-                Back to Details
-              </Link>
-            </>
-          )}
+        <div className={styles.stageError}>
+          <Link href={backHref} className={styles.floatingBack} title="Back to details">
+            <span>←</span>
+          </Link>
+          <div className={styles.errorCard}>
+            <h2>Playback Unavailable</h2>
+            <p>
+              We couldn&apos;t find any working streaming links for this title right now. Please try
+              again later or choose another source.
+            </p>
+            <Link href={backHref} className={styles.errorBackBtn}>
+              Back to Title Details
+            </Link>
+          </div>
         </div>
       )}
     </div>

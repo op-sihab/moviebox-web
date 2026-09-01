@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import styles from "./CustomVideoPlayer.module.css";
 import {
@@ -18,9 +18,12 @@ import {
   Languages,
   SkipForward,
   Check,
-  ChevronRight,
   ArrowLeft,
   Tv,
+  Airplay,
+  Scaling,
+  HelpCircle,
+  Search,
 } from "lucide-react";
 
 interface CustomVideoPlayerProps {
@@ -84,17 +87,25 @@ export default function CustomVideoPlayer({
   const [showSettings, setShowSettings] = useState(false);
   const [showEpisodesDrawer, setShowEpisodesDrawer] = useState(false);
   const [showAudioDrawer, setShowAudioDrawer] = useState(false);
+  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [settingsTab, setSettingsTab] = useState<"main" | "quality" | "speed" | "audio">("main");
+  const [settingsTab, setSettingsTab] = useState<"main" | "quality" | "speed" | "audio" | "aspect">("main");
   const [showControls, setShowControls] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [showSpinner, setShowSpinner] = useState(false);
   const [videoUrl, setVideoUrl] = useState("");
   const [videoError, setVideoError] = useState(false);
+  const [aspectMode, setAspectMode] = useState<"contain" | "cover" | "fill">("contain");
+  const [audioSearch, setAudioSearch] = useState("");
 
-  // Hover time preview for timeline
+  // Gesture Feedback
+  const [gestureSide, setGestureSide] = useState<"left" | "right" | null>(null);
+  const [splashAction, setSplashAction] = useState<"play" | "pause" | null>(null);
+
+  // Timeline Hover
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPos, setHoverPos] = useState<number>(0);
+  const [isDraggingTimeline, setIsDraggingTimeline] = useState(false);
 
   const spinnerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const SPINNER_DELAY_MS = 2500;
@@ -111,8 +122,8 @@ export default function CustomVideoPlayer({
   const isMutedRef = useRef(false);
   const isFullscreenRef = useRef(false);
   const isScrubbingRef = useRef(false);
+  const lastTimeBeforeSwitchRef = useRef<number>(0);
 
-  // Sync isPlaying state to ref
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -125,14 +136,13 @@ export default function CustomVideoPlayer({
     isFullscreenRef.current = isFullscreen;
   }, [isFullscreen]);
 
-  // Sync playback rate on load
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.playbackRate = playbackRate;
     }
   }, [videoUrl, isLoading, playbackRate]);
 
-  // Deferred spinner: smooth without flashing
+  // Deferred Spinner
   useEffect(() => {
     if (isLoading) {
       if (!spinnerTimerRef.current) {
@@ -155,7 +165,7 @@ export default function CustomVideoPlayer({
     };
   }, [isLoading, videoUrl]);
 
-  // Compute sorted dubs: Hindi first, then Original, then others
+  // Sorted Dubs: Hindi first, Original second, others after
   const sortedDubs = useMemo(() => {
     if (!dubs || dubs.length === 0) return [];
     return [...dubs].sort((a: any, b: any) => {
@@ -173,7 +183,15 @@ export default function CustomVideoPlayer({
     });
   }, [dubs]);
 
-  // Current active dub
+  const filteredDubs = useMemo(() => {
+    if (!audioSearch.trim()) return sortedDubs;
+    const q = audioSearch.toLowerCase().trim();
+    return sortedDubs.filter((d: any) => {
+      const name = (d.language_name || d.language || "").toLowerCase();
+      return name.includes(q);
+    });
+  }, [sortedDubs, audioSearch]);
+
   const currentDub = useMemo(() => {
     if (!dubs || dubs.length === 0) return null;
     return (
@@ -196,7 +214,6 @@ export default function CustomVideoPlayer({
     return name.replace(/dub/i, "").trim() || "Audio";
   }, [currentDub]);
 
-  // Associated IDs
   const allIds = useMemo(() => {
     const ids = new Set<string>();
     if (id) ids.add(String(id));
@@ -209,7 +226,7 @@ export default function CustomVideoPlayer({
     return ids;
   }, [id, dubs]);
 
-  // Load and hold playback progress for all episodes
+  // Load progress
   const [episodesProgress, setEpisodesProgress] = useState<Record<string, { progress: number; duration: number }>>({});
 
   useEffect(() => {
@@ -241,7 +258,6 @@ export default function CustomVideoPlayer({
     }
   }, [allIds, title]);
 
-  // Restore playback progress on mount / change
   useEffect(() => {
     try {
       const getBaseTitle = (t: string) => {
@@ -287,8 +303,10 @@ export default function CustomVideoPlayer({
     }
   }, [id, season, episode, mediaType, title, allIds]);
 
-  // Update videoUrl when selectedFile changes
   useEffect(() => {
+    if (videoRef.current && videoRef.current.currentTime > 0) {
+      lastTimeBeforeSwitchRef.current = videoRef.current.currentTime;
+    }
     if (selectedFile?.stream_link) {
       setVideoUrl(selectedFile.stream_link);
       setVideoError(false);
@@ -298,26 +316,24 @@ export default function CustomVideoPlayer({
     }
   }, [selectedFile]);
 
-  // Controls visibility timer
-  const resetControlsTimeout = () => {
+  const resetControlsTimeout = useCallback(() => {
     setShowControls(true);
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
     if (isPlayingRef.current) {
       controlsTimeoutRef.current = setTimeout(() => {
-        if (!showSettings && !showEpisodesDrawer && !showAudioDrawer) {
+        if (!showSettings && !showEpisodesDrawer && !showAudioDrawer && !showShortcutsModal) {
           setShowControls(false);
         }
       }, 3500);
     }
-  };
+  }, [showSettings, showEpisodesDrawer, showAudioDrawer, showShortcutsModal]);
 
   const handleMouseMove = () => {
     resetControlsTimeout();
   };
 
-  // Fullscreen change listener
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -328,7 +344,6 @@ export default function CustomVideoPlayer({
     };
   }, []);
 
-  // Save Progress
   const saveProgress = (curTime: number, dur: number) => {
     if (!curTime || !dur || dur <= 0 || curTime < 5) return;
     try {
@@ -377,14 +392,12 @@ export default function CustomVideoPlayer({
     }
   };
 
-  // Video Events
   const handleTimeUpdate = () => {
     if (videoRef.current && !isScrubbingRef.current) {
       const cur = videoRef.current.currentTime;
       const dur = videoRef.current.duration;
       setCurrentTime(cur);
 
-      // Buffer calculation
       if (videoRef.current.buffered.length > 0) {
         try {
           const bufEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
@@ -396,7 +409,6 @@ export default function CustomVideoPlayer({
         saveProgress(cur, dur);
       }
 
-      // Autoplay Next Episode at the end
       if (mediaType === "tv" && onNextEpisode && dur > 0 && dur - cur <= 15 && !isCountdownCancelled) {
         const remaining = Math.max(0, Math.ceil(dur - cur));
         setCountdown(remaining);
@@ -421,7 +433,11 @@ export default function CustomVideoPlayer({
       setDuration(dur);
       setIsLoading(false);
 
-      if (previousTimeRef.current > 0 && previousTimeRef.current < dur * 0.95) {
+      if (lastTimeBeforeSwitchRef.current > 0) {
+        videoRef.current.currentTime = lastTimeBeforeSwitchRef.current;
+        setCurrentTime(lastTimeBeforeSwitchRef.current);
+        lastTimeBeforeSwitchRef.current = 0;
+      } else if (previousTimeRef.current > 0 && previousTimeRef.current < dur * 0.95) {
         videoRef.current.currentTime = previousTimeRef.current;
         setCurrentTime(previousTimeRef.current);
       }
@@ -458,14 +474,16 @@ export default function CustomVideoPlayer({
     setVideoError(true);
   };
 
-  // Playback toggles
   const togglePlay = () => {
     if (!videoRef.current) return;
     if (isPlaying) {
       videoRef.current.pause();
+      setSplashAction("pause");
     } else {
       videoRef.current.play().catch(console.error);
+      setSplashAction("play");
     }
+    setTimeout(() => setSplashAction(null), 600);
     resetControlsTimeout();
   };
 
@@ -493,6 +511,8 @@ export default function CustomVideoPlayer({
       0,
       Math.min(duration, videoRef.current.currentTime + seconds)
     );
+    setGestureSide(seconds < 0 ? "left" : "right");
+    setTimeout(() => setGestureSide(null), 700);
     resetControlsTimeout();
   };
 
@@ -506,15 +526,57 @@ export default function CustomVideoPlayer({
     resetControlsTimeout();
   };
 
-  // Interactive Timeline Scrubbing
-  const seekToPosition = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || !videoRef.current || duration <= 0) return;
-    const rect = timelineRef.current.getBoundingClientRect();
-    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const target = pos * duration;
-    videoRef.current.currentTime = target;
-    setCurrentTime(target);
-    saveProgress(target, duration);
+  const togglePictureInPicture = async () => {
+    if (!videoRef.current) return;
+    try {
+      if (document.pictureInPictureElement) {
+        await document.exitPictureInPicture();
+      } else if (document.pictureInPictureEnabled) {
+        await videoRef.current.requestPictureInPicture();
+      }
+    } catch (e) {
+      console.error("PiP error", e);
+    }
+    resetControlsTimeout();
+  };
+
+  // Timeline Dragging & Scrubbing
+  const updateScrubTime = useCallback(
+    (clientX: number) => {
+      if (!timelineRef.current || !videoRef.current || duration <= 0) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const target = pos * duration;
+      videoRef.current.currentTime = target;
+      setCurrentTime(target);
+      setHoverPos(clientX - rect.left);
+      setHoverTime(target);
+    },
+    [duration]
+  );
+
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    isScrubbingRef.current = true;
+    setIsDraggingTimeline(true);
+    updateScrubTime(e.clientX);
+
+    const handleMouseMoveWindow = (moveEvent: MouseEvent) => {
+      updateScrubTime(moveEvent.clientX);
+    };
+
+    const handleMouseUpWindow = (upEvent: MouseEvent) => {
+      isScrubbingRef.current = false;
+      setIsDraggingTimeline(false);
+      updateScrubTime(upEvent.clientX);
+      if (videoRef.current) {
+        saveProgress(videoRef.current.currentTime, duration);
+      }
+      window.removeEventListener("mousemove", handleMouseMoveWindow);
+      window.removeEventListener("mouseup", handleMouseUpWindow);
+    };
+
+    window.addEventListener("mousemove", handleMouseMoveWindow);
+    window.addEventListener("mouseup", handleMouseUpWindow);
   };
 
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -526,7 +588,9 @@ export default function CustomVideoPlayer({
   };
 
   const handleTimelineMouseLeave = () => {
-    setHoverTime(null);
+    if (!isDraggingTimeline) {
+      setHoverTime(null);
+    }
   };
 
   // Keyboard Shortcuts
@@ -588,12 +652,17 @@ export default function CustomVideoPlayer({
           e.preventDefault();
           toggleFullscreen();
           break;
+        case "p":
+          e.preventDefault();
+          togglePictureInPicture();
+          break;
         case "d":
         case "c":
           e.preventDefault();
           setShowAudioDrawer((prev) => !prev);
           setShowEpisodesDrawer(false);
           setShowSettings(false);
+          setShowShortcutsModal(false);
           break;
         case "e":
           if (mediaType === "tv") {
@@ -601,6 +670,7 @@ export default function CustomVideoPlayer({
             setShowEpisodesDrawer((prev) => !prev);
             setShowAudioDrawer(false);
             setShowSettings(false);
+            setShowShortcutsModal(false);
           }
           break;
         case "n":
@@ -609,6 +679,10 @@ export default function CustomVideoPlayer({
             onNextEpisode();
           }
           break;
+        case "?":
+          e.preventDefault();
+          setShowShortcutsModal((prev) => !prev);
+          break;
       }
     };
 
@@ -616,14 +690,25 @@ export default function CustomVideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isPlaying, duration, onNextEpisode, mediaType]);
+  }, [isPlaying, duration, onNextEpisode, mediaType, resetControlsTimeout]);
 
-  // Video Container Click (Single tap play/pause, double tap fullscreen)
-  const handleContainerClick = () => {
+  // Video Container Click (Double tap skip / Single tap play)
+  const handleContainerClick = (e: React.MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const isLeftThird = clickX < rect.width * 0.35;
+    const isRightThird = clickX > rect.width * 0.65;
+
     if (clickTimerRef.current) {
       clearTimeout(clickTimerRef.current);
       clickTimerRef.current = null;
-      toggleFullscreen();
+      if (isLeftThird) {
+        skip(-10);
+      } else if (isRightThird) {
+        skip(10);
+      } else {
+        toggleFullscreen();
+      }
     } else {
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
@@ -686,7 +771,13 @@ export default function CustomVideoPlayer({
         <video
           ref={videoRef}
           src={videoUrl}
-          className={styles.video}
+          className={`${styles.video} ${
+            aspectMode === "cover"
+              ? styles.videoCover
+              : aspectMode === "fill"
+              ? styles.videoFill
+              : styles.videoContain
+          }`}
           playsInline
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
@@ -699,6 +790,31 @@ export default function CustomVideoPlayer({
         />
       ) : (
         <div className={styles.noSource}>Loading streaming source…</div>
+      )}
+
+      {/* Gesture Feedback Ripples */}
+      {gestureSide === "left" && (
+        <div className={`${styles.gestureRipple} ${styles.gestureRippleLeft}`}>
+          <div className={styles.gestureBadge}>
+            <RotateCcw size={28} />
+            <span>-10s</span>
+          </div>
+        </div>
+      )}
+      {gestureSide === "right" && (
+        <div className={`${styles.gestureRipple} ${styles.gestureRippleRight}`}>
+          <div className={styles.gestureBadge}>
+            <RotateCw size={28} />
+            <span>+10s</span>
+          </div>
+        </div>
+      )}
+
+      {/* Action Splash Animation */}
+      {splashAction && (
+        <div className={styles.actionSplash}>
+          {splashAction === "play" ? <Play size={38} fill="currentColor" /> : <Pause size={38} />}
+        </div>
       )}
 
       {/* Stream Error Overlay */}
@@ -721,7 +837,7 @@ export default function CustomVideoPlayer({
         </div>
       )}
 
-      {/* Modern Minimalist Neon Spinner (Zero Text) */}
+      {/* Minimalist Zero-Text Neon Ring Spinner */}
       {showSpinner && (
         <div className={styles.loadingOverlay}>
           <div className={styles.customSpinnerWrapper}>
@@ -736,7 +852,7 @@ export default function CustomVideoPlayer({
       {!isPlaying && videoUrl && !showSpinner && (
         <div className={styles.bigPlayOverlay} onClick={togglePlay}>
           <div className={styles.bigPlayButton}>
-            <Play size={36} fill="currentColor" color="white" className={styles.bigPlayIcon} />
+            <Play size={38} fill="currentColor" color="white" className={styles.bigPlayIcon} />
           </div>
         </div>
       )}
@@ -750,13 +866,13 @@ export default function CustomVideoPlayer({
           onClick={(e) => e.stopPropagation()}
         >
           <button onClick={() => skip(-10)} className={styles.mobileCenterButton} title="Skip back 10s">
-            <RotateCcw size={22} />
+            <RotateCcw size={24} />
           </button>
           <button onClick={togglePlay} className={styles.mobileCenterButton} title={isPlaying ? "Pause" : "Play"}>
-            {isPlaying ? <Pause size={24} /> : <Play size={24} fill="currentColor" />}
+            {isPlaying ? <Pause size={26} /> : <Play size={26} fill="currentColor" />}
           </button>
           <button onClick={() => skip(10)} className={styles.mobileCenterButton} title="Skip forward 10s">
-            <RotateCw size={22} />
+            <RotateCw size={24} />
           </button>
         </div>
       )}
@@ -789,13 +905,13 @@ export default function CustomVideoPlayer({
           </div>
         </div>
 
-        {/* Bottom Bar: Interactive Timeline + Controls */}
+        {/* Bottom Bar: Interactive Scrub Bar + Control Bar */}
         <div className={styles.bottomControlsGroup} onClick={(e) => e.stopPropagation()}>
-          {/* Custom Timeline */}
+          {/* Custom Interactive Timeline */}
           <div
             ref={timelineRef}
             className={styles.timelineContainer}
-            onClick={seekToPosition}
+            onMouseDown={handleTimelineMouseDown}
             onMouseMove={handleTimelineMouseMove}
             onMouseLeave={handleTimelineMouseLeave}
           >
@@ -818,16 +934,16 @@ export default function CustomVideoPlayer({
               <button
                 onClick={togglePlay}
                 className={styles.iconButton}
-                title={isPlaying ? "Pause (Space)" : "Play (Space)"}
+                title={isPlaying ? "Pause (Space/K)" : "Play (Space/K)"}
               >
                 {isPlaying ? <Pause size={24} /> : <Play size={24} fill="currentColor" />}
               </button>
 
-              <button onClick={() => skip(-10)} className={styles.iconButton} title="Rewind 10s (J)">
+              <button onClick={() => skip(-10)} className={styles.iconButton} title="Rewind 10s (J/Left)">
                 <RotateCcw size={22} />
               </button>
 
-              <button onClick={() => skip(10)} className={styles.iconButton} title="Forward 10s (L)">
+              <button onClick={() => skip(10)} className={styles.iconButton} title="Forward 10s (L/Right)">
                 <RotateCw size={22} />
               </button>
 
@@ -835,7 +951,7 @@ export default function CustomVideoPlayer({
                 <button
                   onClick={() => onNextEpisode()}
                   className={styles.iconButton}
-                  title={`Next: ${nextEpisodeTitle || "Next Episode"}`}
+                  title={`Next: ${nextEpisodeTitle || "Next Episode (N)"}`}
                 >
                   <SkipForward size={22} fill="currentColor" />
                 </button>
@@ -880,13 +996,14 @@ export default function CustomVideoPlayer({
 
             {/* Right Controls */}
             <div className={styles.rightControls}>
-              {/* Episodes Drawer Toggle for TV */}
+              {/* Episodes Drawer Toggle */}
               {mediaType === "tv" && episodes && episodes.length > 0 && (
                 <button
                   onClick={() => {
                     setShowEpisodesDrawer(!showEpisodesDrawer);
                     setShowAudioDrawer(false);
                     setShowSettings(false);
+                    setShowShortcutsModal(false);
                   }}
                   className={`${styles.iconButton} ${showEpisodesDrawer ? styles.activeIcon : ""}`}
                   title="Episodes (E)"
@@ -902,6 +1019,7 @@ export default function CustomVideoPlayer({
                     setShowAudioDrawer(!showAudioDrawer);
                     setShowEpisodesDrawer(false);
                     setShowSettings(false);
+                    setShowShortcutsModal(false);
                   }}
                   className={`${styles.audioQuickBtn} ${showAudioDrawer ? styles.audioQuickBtnActive : ""}`}
                   title="Audio & Dubs (D)"
@@ -912,13 +1030,14 @@ export default function CustomVideoPlayer({
                 </button>
               )}
 
-              {/* Playback Settings Modal */}
+              {/* Settings Popover */}
               <div className={styles.settingsWrapper}>
                 <button
                   onClick={() => {
                     setShowSettings(!showSettings);
                     setShowEpisodesDrawer(false);
                     setShowAudioDrawer(false);
+                    setShowShortcutsModal(false);
                     setSettingsTab("main");
                   }}
                   className={`${styles.iconButton} ${showSettings ? styles.activeIcon : ""}`}
@@ -963,6 +1082,27 @@ export default function CustomVideoPlayer({
                             <span style={{ fontSize: "0.8rem", opacity: 0.65 }}>
                               {playbackRate === 1 ? "Normal" : `${playbackRate}x`} ›
                             </span>
+                          </button>
+
+                          <button
+                            onClick={() => setSettingsTab("aspect")}
+                            className={styles.menuItem}
+                          >
+                            <span>Aspect Ratio</span>
+                            <span style={{ fontSize: "0.8rem", opacity: 0.65, textTransform: "capitalize" }}>
+                              {aspectMode} ›
+                            </span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setShowSettings(false);
+                              setShowShortcutsModal(true);
+                            }}
+                            className={styles.menuItem}
+                          >
+                            <span>Hotkeys Guide</span>
+                            <HelpCircle size={16} opacity={0.65} />
                           </button>
                         </div>
                       </>
@@ -1037,7 +1177,7 @@ export default function CustomVideoPlayer({
                           onClick={() => setSettingsTab("main")}
                           className={styles.menuHeaderBack}
                         >
-                          ‹ Speed
+                          ‹ Playback Speed
                         </button>
                         <div className={styles.menuList}>
                           {[0.5, 0.75, 1, 1.25, 1.5, 1.75, 2].map((rate) => {
@@ -1062,9 +1202,51 @@ export default function CustomVideoPlayer({
                         </div>
                       </>
                     )}
+
+                    {settingsTab === "aspect" && (
+                      <>
+                        <button
+                          onClick={() => setSettingsTab("main")}
+                          className={styles.menuHeaderBack}
+                        >
+                          ‹ Aspect Ratio
+                        </button>
+                        <div className={styles.menuList}>
+                          {[
+                            { id: "contain", label: "Fit to Screen (Default)" },
+                            { id: "cover", label: "Fill / Zoom (No Black Bars)" },
+                            { id: "fill", label: "Stretch Screen" },
+                          ].map((item) => {
+                            const isCurrent = aspectMode === item.id;
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setAspectMode(item.id as any);
+                                  setShowSettings(false);
+                                }}
+                                className={`${styles.menuItem} ${isCurrent ? styles.activeItem : ""}`}
+                              >
+                                <span>{item.label}</span>
+                                {isCurrent && <Check size={16} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
+
+              {/* Picture-in-Picture */}
+              <button
+                onClick={togglePictureInPicture}
+                className={styles.iconButton}
+                title="Picture-in-Picture (P)"
+              >
+                <Airplay size={21} />
+              </button>
 
               {/* Fullscreen Button */}
               <button
@@ -1091,7 +1273,7 @@ export default function CustomVideoPlayer({
           <div className={styles.drawerHeader}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
               <Languages size={22} color="var(--accent-color, #e50914)" />
-              <h3>Audio & Dubs</h3>
+              <h3>Audio & Dubs ({sortedDubs.length})</h3>
             </div>
             <button
               onClick={() => setShowAudioDrawer(false)}
@@ -1101,8 +1283,41 @@ export default function CustomVideoPlayer({
               ×
             </button>
           </div>
+
+          {sortedDubs.length > 6 && (
+            <div style={{ padding: "0.8rem 1.4rem 0 1.4rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: "8px",
+                  padding: "0.45rem 0.8rem",
+                }}
+              >
+                <Search size={16} color="rgba(255,255,255,0.5)" />
+                <input
+                  type="text"
+                  placeholder="Search audio language..."
+                  value={audioSearch}
+                  onChange={(e) => setAudioSearch(e.target.value)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    outline: "none",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                    width: "100%",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className={styles.drawerList}>
-            {sortedDubs.map((dub: any, idx: number) => {
+            {filteredDubs.map((dub: any, idx: number) => {
               const dubId = String(dub.subject_id || dub.detail_path || idx);
               const isActive =
                 dubId === String(id) || String(dub.detail_path) === String(id);
@@ -1119,14 +1334,14 @@ export default function CustomVideoPlayer({
                   <div className={styles.audioDubLeft}>
                     <span className={styles.audioDubName}>{name}</span>
                     {isHindi && (
-                      <span className={styles.dubLangBadge} style={{ fontSize: "0.68rem" }}>
+                      <span className={styles.dubLangBadge} style={{ fontSize: "0.7rem" }}>
                         Hindi
                       </span>
                     )}
                     {isOrig && !isHindi && (
                       <span
                         className={styles.dubLangBadge}
-                        style={{ background: "rgba(255,255,255,0.2)", fontSize: "0.68rem" }}
+                        style={{ background: "rgba(255,255,255,0.2)", fontSize: "0.7rem" }}
                       >
                         Original
                       </span>
@@ -1142,7 +1357,7 @@ export default function CustomVideoPlayer({
         </div>
       )}
 
-      {/* Episodes Drawer Overlay (Sliding sidebar for TV Shows) */}
+      {/* Episodes Drawer Overlay */}
       {showEpisodesDrawer && mediaType === "tv" && episodes && episodes.length > 0 && (
         <div
           className={styles.episodesDrawer}
@@ -1204,7 +1419,7 @@ export default function CustomVideoPlayer({
                         position: "relative",
                         width: "120px",
                         flexShrink: 0,
-                        borderRadius: "6px",
+                        borderRadius: "8px",
                         overflow: "hidden",
                         aspectRatio: "16/9",
                         backgroundColor: "rgba(255,255,255,0.08)",
@@ -1222,11 +1437,11 @@ export default function CustomVideoPlayer({
                           position: "absolute",
                           bottom: "4px",
                           right: "4px",
-                          backgroundColor: "rgba(0,0,0,0.8)",
+                          backgroundColor: "rgba(0,0,0,0.85)",
                           color: "white",
                           fontSize: "0.7rem",
                           fontWeight: 700,
-                          padding: "2px 5px",
+                          padding: "2px 6px",
                           borderRadius: "4px",
                         }}
                       >
@@ -1240,7 +1455,7 @@ export default function CustomVideoPlayer({
                             left: 0,
                             right: 0,
                             height: "3px",
-                            backgroundColor: "rgba(255,255,255,0.2)",
+                            backgroundColor: "rgba(255,255,255,0.25)",
                             zIndex: 10,
                           }}
                         >
@@ -1292,7 +1507,7 @@ export default function CustomVideoPlayer({
         </div>
       )}
 
-      {/* Play Next Episode Countdown Toast */}
+      {/* Autoplay Next Episode Toast */}
       {showCountdownToast && onNextEpisode && (
         <div className={styles.nextToastContainer} onClick={(e) => e.stopPropagation()}>
           <span className={styles.toastLabel}>Playing Next Episode</span>
@@ -1323,6 +1538,66 @@ export default function CustomVideoPlayer({
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcutsModal && (
+        <div className={styles.shortcutsModal} onClick={(e) => e.stopPropagation()}>
+          <div className={styles.shortcutsHeader}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <HelpCircle size={20} color="var(--accent-color, #e50914)" />
+              <h3>Keyboard Hotkeys</h3>
+            </div>
+            <button
+              onClick={() => setShowShortcutsModal(false)}
+              className={styles.drawerCloseBtn}
+            >
+              ×
+            </button>
+          </div>
+          <div className={styles.shortcutsGrid}>
+            <div className={styles.shortcutRow}>
+              <span>Play / Pause</span>
+              <span className={styles.shortcutKbd}>Space / K</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Seek Back 10s</span>
+              <span className={styles.shortcutKbd}>← / J</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Seek Forward 10s</span>
+              <span className={styles.shortcutKbd}>→ / L</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Volume Up / Down</span>
+              <span className={styles.shortcutKbd}>↑ / ↓</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Mute / Unmute</span>
+              <span className={styles.shortcutKbd}>M</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Toggle Fullscreen</span>
+              <span className={styles.shortcutKbd}>F</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Audio & Dubs</span>
+              <span className={styles.shortcutKbd}>D</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Episodes List</span>
+              <span className={styles.shortcutKbd}>E</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Picture in Picture</span>
+              <span className={styles.shortcutKbd}>P</span>
+            </div>
+            <div className={styles.shortcutRow}>
+              <span>Next Episode</span>
+              <span className={styles.shortcutKbd}>N</span>
+            </div>
           </div>
         </div>
       )}

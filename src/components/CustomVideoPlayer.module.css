@@ -31,26 +31,6 @@
   box-shadow: none;
 }
 
-.videoSlot {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.videoSlotActive {
-  opacity: 1;
-  z-index: 2;
-  pointer-events: auto;
-}
-
-.videoSlotInactive {
-  opacity: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-
 .video {
   width: 100%;
   height: 100%;
@@ -76,30 +56,28 @@
   align-items: center;
   justify-content: center;
   color: var(--text-secondary, #888);
-  font-weight: 600;
-  font-size: 1.05rem;
+  font-size: 1rem;
+  background: #050508;
 }
 
 /* ==========================================================================
-   Minimalist Neon Ring Spinner (Zero Text)
+   Minimalist Zero-Text Orbital Spinner
    ========================================================================== */
 .loadingOverlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(12, 12, 18, 0.6) 0%, rgba(0, 0, 0, 0.85) 100%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 18;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 15;
   pointer-events: none;
 }
 
 .customSpinnerWrapper {
   position: relative;
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,22 +85,22 @@
 
 .customSpinnerRing {
   position: absolute;
-  width: 68px;
-  height: 68px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
-  border: 3.5px solid rgba(255, 255, 255, 0.08);
+  border: 3px solid rgba(255, 255, 255, 0.08);
   border-top-color: var(--accent-color, #e50914);
   border-right-color: var(--accent-color, #e50914);
   animation: spinnerRotate 0.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
-  box-shadow: 0 0 30px rgba(229, 9, 20, 0.5);
+  box-shadow: 0 0 24px rgba(229, 9, 20, 0.5);
 }
 
 .customSpinnerRingInner {
   position: absolute;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  border: 2.5px solid rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.06);
   border-bottom-color: #fff;
   border-left-color: #fff;
   animation: spinnerRotateReverse 1.1s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
@@ -130,12 +108,12 @@
 
 .customSpinnerGlow {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: radial-gradient(circle, var(--accent-color, #e50914) 0%, transparent 75%);
   animation: spinnerPulse 1.3s ease-in-out infinite alternate;
-  filter: blur(3px);
+  filter: blur(2px);
 }
 
 @keyframes spinnerRotate {
@@ -148,7 +126,7 @@
 
 @keyframes spinnerPulse {
   0% { transform: scale(0.6); opacity: 0.4; }
-  100% { transform: scale(1.4); opacity: 0.95; }
+  100% { transform: scale(1.3); opacity: 0.95; }
 }
 
 /* Stream Error Overlay */
@@ -156,24 +134,18 @@
   position: absolute;
   inset: 0;
   background: rgba(8, 8, 12, 0.92);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 1.25rem;
-  z-index: 19;
-  color: white;
-  padding: 2rem;
-  text-align: center;
+  z-index: 25;
 }
 
 .errorText {
   font-size: 1.1rem;
   font-weight: 700;
   color: #fff;
-  letter-spacing: -0.01em;
 }
 
 .errorRetryBtn {
@@ -181,7 +153,7 @@
   color: white;
   border: none;
   border-radius: 999px;
-  padding: 0.8rem 2rem;
+  padding: 0.75rem 2rem;
   font-size: 0.95rem;
   font-weight: 700;
   cursor: pointer;
@@ -194,89 +166,34 @@
   box-shadow: 0 8px 32px rgba(229, 9, 20, 0.7);
 }
 
-/* ==========================================================================
-   Gesture Ripple Feedback (Double Tap & Skip Animations)
-   ========================================================================== */
-.gestureRipple {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 35%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.12) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 17;
-  animation: gestureFade 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.gestureRippleLeft {
-  left: 0;
-  border-top-right-radius: 50%;
-  border-bottom-right-radius: 50%;
-}
-
-.gestureRippleRight {
-  right: 0;
-  border-top-left-radius: 50%;
-  border-bottom-left-radius: 50%;
-}
-
-.gestureBadge {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
-  background: rgba(15, 15, 25, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: 0.8rem 1.4rem;
-  border-radius: 999px;
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 800;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-}
-
-@keyframes gestureFade {
-  0% { opacity: 0; transform: scale(0.8); }
-  30% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.15); }
-}
-
-/* Play/Pause Splash Icon */
+/* Play/Pause Center Splash Icon */
 .actionSplash {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   background: rgba(15, 15, 22, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
+  z-index: 18;
   pointer-events: none;
-  z-index: 17;
-  animation: splashFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  animation: splashFade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes splashFade {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
-  40% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.3); }
+  40% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.2); }
 }
 
 /* ==========================================================================
-   Controls Overlay & HUD
+   Controls Overlay & HUD (Clean Cinema Grade, Zero Heavy Blur)
    ========================================================================== */
 .controlsWrapper {
   position: absolute;
@@ -286,7 +203,7 @@
   justify-content: space-between;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 20;
 }
 
@@ -302,14 +219,14 @@
   left: 0;
   right: 0;
   width: 100%;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.45) 60%, transparent 100%);
-  padding: 1.75rem 2.25rem 3.5rem 2.25rem;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.3) 60%, transparent 100%);
+  padding: 1.25rem 1.75rem 2.5rem 1.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   z-index: 22;
   transform: translateY(-100%);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .visible .playerHeader {
@@ -327,12 +244,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.12);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.15);
   flex-shrink: 0;
@@ -344,7 +259,6 @@
   background: var(--accent-color, #e50914);
   border-color: var(--accent-color, #e50914);
   transform: scale(1.08);
-  box-shadow: 0 0 20px rgba(229, 9, 20, 0.6);
 }
 
 .headerTitles {
@@ -355,18 +269,18 @@
 }
 
 .headerTitle {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: #fff;
   letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
 }
 
 .headerEpisode {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.75);
   white-space: nowrap;
@@ -377,7 +291,7 @@
 .headerBadges {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.5rem;
   flex-shrink: 0;
 }
 
@@ -385,27 +299,24 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.35rem 0.8rem;
+  padding: 0.3rem 0.75rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .headerPillRed {
-  background: rgba(229, 9, 20, 0.22);
+  background: rgba(229, 9, 20, 0.25);
   border-color: rgba(229, 9, 20, 0.5);
   color: #ff5260;
 }
 
 /* ==========================================================================
-   Floating Glass Control Dock & Interactive Timeline
+   Bottom Controls & Clean Timeline (NO Foggy Blur)
    ========================================================================== */
 .bottomControlsGroup {
   position: absolute;
@@ -413,15 +324,13 @@
   left: 0;
   right: 0;
   width: 100%;
-  background: linear-gradient(to top, rgba(6, 6, 10, 0.98) 0%, rgba(6, 6, 10, 0.82) 50%, rgba(6, 6, 10, 0.2) 85%, transparent 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 3.5rem 2.25rem 1.75rem 2.25rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.35) 60%, transparent 100%);
+  padding: 2.25rem 1.75rem 1.25rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
   transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 22;
 }
 
@@ -433,7 +342,7 @@
 .timelineContainer {
   position: relative;
   width: 100%;
-  height: 28px;
+  height: 22px;
   display: flex;
   align-items: center;
   cursor: pointer;
@@ -444,8 +353,8 @@
 .timelineTrack {
   position: relative;
   width: 100%;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.22);
+  height: 4px;
+  background: rgba(255, 255, 255, 0.25);
   border-radius: 999px;
   transition: height 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: visible;
@@ -453,7 +362,7 @@
 
 .timelineContainer:hover .timelineTrack,
 .timelineContainer:active .timelineTrack {
-  height: 8px;
+  height: 7px;
 }
 
 .timelineBuffer {
@@ -461,7 +370,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.4);
   border-radius: 999px;
   pointer-events: none;
 }
@@ -471,9 +380,9 @@
   left: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #ff2a3a 0%, var(--accent-color, #e50914) 100%);
+  background: var(--accent-color, #e50914);
   border-radius: 999px;
-  box-shadow: 0 0 14px rgba(229, 9, 20, 0.75);
+  box-shadow: 0 0 10px rgba(229, 9, 20, 0.8);
   pointer-events: none;
 }
 
@@ -481,12 +390,12 @@
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%) scale(0);
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #fff;
-  border: 3px solid var(--accent-color, #e50914);
-  box-shadow: 0 0 18px rgba(229, 9, 20, 0.95);
+  border: 2.5px solid var(--accent-color, #e50914);
+  box-shadow: 0 0 12px rgba(229, 9, 20, 0.9);
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
 }
@@ -498,20 +407,17 @@
 
 .timelineHoverTime {
   position: absolute;
-  bottom: 32px;
+  bottom: 28px;
   transform: translateX(-50%);
-  background: rgba(12, 12, 20, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 0.8rem;
+  background: rgba(15, 15, 20, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 700;
   color: #fff;
   pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.85);
   white-space: nowrap;
 }
 
@@ -527,7 +433,7 @@
 .rightControls {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
 }
 
 .iconButton {
@@ -538,8 +444,8 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
@@ -547,89 +453,45 @@
 
 .iconButton:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.14);
-  transform: scale(1.1);
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.08);
 }
 
-.iconButton:active {
-  transform: scale(0.92);
+.skipBtnDesktopHidden {
+  display: none;
 }
 
-.activeIcon {
-  color: var(--accent-color, #e50914) !important;
-  background: rgba(229, 9, 20, 0.18) !important;
+@media (max-width: 768px) {
+  .skipBtnDesktopHidden {
+    display: flex !important;
+  }
 }
 
-/* Quick Audio Dubs Button */
-.audioQuickBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  color: #fff;
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.audioQuickBtn:hover {
-  background: rgba(255, 255, 255, 0.18);
-  border-color: rgba(255, 255, 255, 0.35);
-  transform: translateY(-1px);
-}
-
-.audioQuickBtnActive {
-  background: rgba(229, 9, 20, 0.25);
-  border-color: var(--accent-color, #e50914);
-  color: #ff5260;
-  box-shadow: 0 0 16px rgba(229, 9, 20, 0.4);
-}
-
-.dubLangBadge {
-  font-size: 0.72rem;
-  font-weight: 800;
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  background: var(--accent-color, #e50914);
-  color: #fff;
-  text-transform: capitalize;
-}
-
-/* Volume Slider */
 .volumeContainer {
   display: flex;
   align-items: center;
-  gap: 0.2rem;
-  position: relative;
+  gap: 0.25rem;
 }
 
 .volumeSliderWrapper {
-  width: 0px;
+  width: 0;
   overflow: hidden;
-  opacity: 0;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   display: flex;
   align-items: center;
 }
 
 .volumeContainer:hover .volumeSliderWrapper,
 .volumeContainer:focus-within .volumeSliderWrapper {
-  width: 82px;
-  opacity: 1;
+  width: 80px;
 }
 
 .volumeSlider {
-  width: 78px;
-  height: 4px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255, 255, 255, 0.25);
+  width: 72px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 999px;
   outline: none;
   cursor: pointer;
@@ -642,111 +504,133 @@
   height: 12px;
   border-radius: 50%;
   background: #fff;
-  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
   cursor: pointer;
 }
 
-/* Time Display */
 .timeDisplay {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  margin-left: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  margin-left: 0.4rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .timeDivider {
-  color: rgba(255, 255, 255, 0.35);
+  opacity: 0.4;
 }
 
-/* ==========================================================================
-   Settings Menu Popover
-   ========================================================================== */
+/* Audio Quick Button */
+.audioQuickBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.audioQuickBtn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: scale(1.04);
+}
+
+.audioQuickBtnActive {
+  background: var(--accent-color, #e50914) !important;
+  border-color: var(--accent-color, #e50914) !important;
+}
+
+.dubLangBadge {
+  background: var(--accent-color, #e50914);
+  color: #fff;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.activeIcon {
+  color: var(--accent-color, #e50914) !important;
+}
+
+/* Settings Popover */
 .settingsWrapper {
   position: relative;
 }
 
 .settingsMenu {
   position: absolute;
-  bottom: 3.8rem;
+  bottom: calc(100% + 14px);
   right: 0;
-  background: rgba(12, 12, 20, 0.95);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(14, 14, 20, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  padding: 0.75rem 0;
-  min-width: 230px;
-  max-height: 400px;
-  overflow-y: auto;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9);
+  border-radius: 14px;
+  padding: 0.5rem;
+  min-width: 220px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85);
+  z-index: 35;
   display: flex;
   flex-direction: column;
-  animation: menuSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  z-index: 35;
-}
-
-@keyframes menuSlideUp {
-  from { transform: translateY(14px) scale(0.95); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
+  gap: 0.25rem;
 }
 
 .menuHeader {
-  font-size: 0.76rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 0.4rem 1.4rem 0.6rem;
+  color: rgba(255, 255, 255, 0.45);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
 }
 
 .menuHeaderBack {
   background: none;
   border: none;
-  font-size: 0.84rem;
-  font-weight: 800;
   color: #fff;
-  padding: 0.5rem 1.4rem 0.6rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
   cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 0.25rem;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  text-align: left;
-  transition: color 0.2s ease;
-}
-
-.menuHeaderBack:hover {
-  color: var(--accent-color, #e50914);
+  gap: 0.4rem;
 }
 
 .menuList {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.2rem;
+  max-height: 260px;
+  overflow-y: auto;
 }
 
 .menuItem {
   background: none;
   border: none;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.7rem 1.4rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.9rem;
-  font-weight: 600;
   cursor: pointer;
-  transition: all 0.18s ease;
-  text-align: left;
-  width: 100%;
+  transition: all 0.15s ease;
 }
 
 .menuItem:hover {
@@ -755,227 +639,95 @@
 }
 
 .activeItem {
-  color: var(--accent-color, #e50914) !important;
+  background: rgba(229, 9, 20, 0.2) !important;
+  color: #fff !important;
   font-weight: 800;
-  background: rgba(229, 9, 20, 0.15) !important;
 }
 
-/* ==========================================================================
-   Center Play & Mobile Touch Overlay
-   ========================================================================== */
-.bigPlayOverlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  cursor: pointer;
-  background: rgba(0, 0, 0, 0.28);
-  transition: background 0.3s ease;
-}
-
-.bigPlayOverlay:hover {
-  background: rgba(0, 0, 0, 0.45);
-}
-
-.bigPlayButton {
-  width: 82px;
-  height: 82px;
-  border-radius: 50%;
-  background: rgba(229, 9, 20, 0.92);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 0 45px rgba(229, 9, 20, 0.7), inset 0 0 20px rgba(255, 255, 255, 0.25);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease;
-  animation: scaleFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes scaleFadeIn {
-  from { transform: scale(0.85); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.bigPlayOverlay:hover .bigPlayButton {
-  transform: scale(1.12);
-  box-shadow: 0 0 55px rgba(229, 9, 20, 0.9), inset 0 0 25px rgba(255, 255, 255, 0.35);
-}
-
-.bigPlayIcon {
-  margin-left: 4px;
-  color: white;
-}
-
-.mobileCenterControls {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  gap: 2.5rem;
-  z-index: 21;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mobileCenterControlsVisible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.mobileCenterButton {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(14, 14, 22, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.mobileCenterButton:hover {
-  background: var(--accent-color, #e50914);
-  border-color: var(--accent-color, #e50914);
-  transform: scale(1.12);
-}
-
-/* ==========================================================================
-   Episodes & Audio Drawers
-   ========================================================================== */
-.episodesDrawer,
+/* Audio Drawer */
 .audioDrawer {
   position: absolute;
   top: 0;
   bottom: 0;
   right: 0;
-  width: 380px;
-  max-width: 88%;
-  background: rgba(10, 10, 16, 0.96);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border-left: 1px solid rgba(255, 255, 255, 0.14);
-  z-index: 40;
+  width: 320px;
+  max-width: 85%;
+  background: rgba(12, 12, 18, 0.97);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  animation: slideDrawer 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  box-shadow: -15px 0 60px rgba(0, 0, 0, 0.95);
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.9);
 }
 
-@keyframes slideDrawer {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+.episodesDrawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 380px;
+  max-width: 90%;
+  background: rgba(12, 12, 18, 0.97);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.9);
 }
 
 .drawerHeader {
+  padding: 1.25rem 1.4rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.6rem 1.8rem 1.1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .drawerHeader h3 {
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  color: #fff;
   margin: 0;
+  color: #fff;
 }
 
 .drawerCloseBtn {
-  background: rgba(255, 255, 255, 0.08);
+  background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.75);
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  font-size: 1.3rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.6rem;
+  line-height: 1;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
 }
 
 .drawerCloseBtn:hover {
-  background: rgba(255, 255, 255, 0.22);
   color: #fff;
-  transform: scale(1.08);
 }
 
 .drawerList {
   flex: 1;
   overflow-y: auto;
-  padding: 1.1rem 1.4rem;
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-}
-
-.drawerItem {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 12px;
-  padding: 0.95rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-}
-
-.drawerItem:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-}
-
-.drawerItemActive {
-  background: rgba(229, 9, 20, 0.18) !important;
-  border-color: var(--accent-color, #e50914) !important;
-  box-shadow: 0 6px 24px rgba(229, 9, 20, 0.3);
-}
-
-.drawerItemTitle {
-  font-size: 0.98rem;
-  font-weight: 800;
-  color: #fff;
-}
-
-.drawerItemOverview {
-  font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.45;
-  margin-top: 0.4rem;
+  gap: 0.5rem;
 }
 
 .audioDubItem {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 12px;
-  padding: 1rem 1.25rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .audioDubItem:hover {
   background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.25);
-  transform: translateX(-3px);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .audioDubItemActive {
@@ -986,87 +738,100 @@
 .audioDubLeft {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.6rem;
 }
 
 .audioDubName {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.drawerItem {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 0.75rem;
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.drawerItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.drawerItemActive {
+  background: rgba(229, 9, 20, 0.15) !important;
+  border-color: var(--accent-color, #e50914) !important;
+}
+
+.drawerItemTitle {
+  font-size: 0.88rem;
   font-weight: 700;
   color: #fff;
 }
 
-/* ==========================================================================
-   Next Episode Toast (Netflix Floating Pill Card)
-   ========================================================================== */
-.nextToastContainer {
-  position: absolute;
-  bottom: 6.5rem;
-  right: 2rem;
-  background: rgba(12, 12, 20, 0.94);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  padding: 1.35rem;
-  border-radius: 16px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.95), 0 0 35px rgba(229, 9, 20, 0.25);
-  display: flex;
-  flex-direction: column;
-  gap: 0.95rem;
-  z-index: 25;
-  width: 330px;
-  max-width: 90%;
-  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.drawerItemOverview {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.35;
 }
 
-@keyframes toastSlideIn {
-  from { transform: translateX(100%) scale(0.9); opacity: 0; }
-  to { transform: translateX(0) scale(1); opacity: 1; }
+/* Next Episode Toast */
+.nextToastContainer {
+  position: absolute;
+  bottom: 85px;
+  right: 24px;
+  background: rgba(15, 15, 22, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 35;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+  min-width: 240px;
 }
 
 .toastLabel {
-  font-size: 0.74rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-size: 0.72rem;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.55);
+  font-weight: 800;
+  color: var(--accent-color, #e50914);
 }
 
 .toastTimerRow {
   display: flex;
   align-items: center;
-  gap: 1.1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
-  padding-bottom: 0.85rem;
+  gap: 0.6rem;
 }
 
 .toastCountdownNum {
-  font-size: 1.65rem;
-  font-weight: 900;
-  color: var(--accent-color, #e50914);
-  border: 2.5px solid var(--accent-color, #e50914);
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
+  background: var(--accent-color, #e50914);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 18px rgba(229, 9, 20, 0.35);
-  flex-shrink: 0;
 }
 
 .toastTitle {
-  font-size: 0.98rem;
-  font-weight: 800;
+  font-size: 0.88rem;
+  font-weight: 700;
   color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .toastActions {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
 }
 
 .toastPlayBtn {
@@ -1074,126 +839,75 @@
   background: var(--accent-color, #e50914);
   color: #fff;
   border: none;
-  border-radius: 10px;
-  padding: 0.65rem 1.1rem;
-  font-size: 0.9rem;
-  font-weight: 800;
+  border-radius: 6px;
+  padding: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 18px rgba(229, 9, 20, 0.4);
-  transition: all 0.2s ease;
-}
-
-.toastPlayBtn:hover {
-  filter: brightness(1.15);
-  transform: scale(1.03);
 }
 
 .toastCancelBtn {
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
   border: none;
-  border-radius: 10px;
-  padding: 0.65rem 1.1rem;
-  font-size: 0.9rem;
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.2s ease;
 }
 
-.toastCancelBtn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
-}
-
-/* ==========================================================================
-   Shortcuts Modal Overlay
-   ========================================================================== */
+/* Shortcuts Modal */
 .shortcutsModal {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(12, 12, 20, 0.96);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 18px;
-  padding: 1.8rem;
-  width: 440px;
+  background: rgba(14, 14, 20, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 1.5rem;
+  width: 360px;
   max-width: 90%;
-  z-index: 50;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.95);
-  animation: modalScale 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes modalScale {
-  from { transform: translate(-50%, -50%) scale(0.92); opacity: 0; }
-  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  z-index: 40;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
 }
 
 .shortcutsHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1.25rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
 }
 
 .shortcutsHeader h3 {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #fff;
   margin: 0;
+  color: #fff;
 }
 
 .shortcutsGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
 .shortcutRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.35rem 0;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.75);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .shortcutKbd {
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 6px;
-  padding: 2px 7px;
-  font-size: 0.75rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-weight: 800;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
   color: #fff;
-}
-
-/* ==========================================================================
-   Responsive Breakpoints
-   ========================================================================== */
-@media (max-width: 768px) {
-  .playerHeader { padding: 1.2rem 1.2rem 2.5rem 1.2rem; }
-  .bottomControlsGroup { padding: 2.5rem 1.2rem 1.2rem 1.2rem; }
-  .iconButton { width: 38px; height: 38px; }
-  .audioQuickBtn span:not(.dubLangBadge) { display: none; }
-  .timeDisplay { font-size: 0.75rem; }
-  .headerBadges { display: none; }
-  .episodesDrawer, .audioDrawer { width: 100%; max-width: 100%; }
-}
-
-
-/* Skip buttons hidden on PC / Desktop */
-.skipBtnDesktopHidden {
-  display: none;
-}
-
-@media (max-width: 768px) {
-  .skipBtnDesktopHidden {
-    display: flex !important;
-  }
 }

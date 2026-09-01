@@ -73,15 +73,10 @@ export default function CustomVideoPlayer({
   onDubChange,
 }: CustomVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
 
-  // Dual Video Elements (Slot A and Slot B for seamless in-place audio swapping)
-  const videoRefA = useRef<HTMLVideoElement>(null);
-  const videoRefB = useRef<HTMLVideoElement>(null);
-  const [activeSlot, setActiveSlot] = useState<"A" | "B">("A");
-  const [slotAUrl, setSlotAUrl] = useState<string>("");
-  const [slotBUrl, setSlotBUrl] = useState<string>("");
-
+  const [videoUrl, setVideoUrl] = useState<string>("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -120,38 +115,17 @@ export default function CustomVideoPlayer({
 
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousTimeRef = useRef(0);
+  const pendingTimestampRef = useRef<number | null>(null);
   const isPlayingRef = useRef(false);
-  const isMutedRef = useRef(false);
-  const isFullscreenRef = useRef(false);
   const isScrubbingRef = useRef(false);
-  const isSeamlessSwitchingRef = useRef(false);
-
-  const getActiveVideo = useCallback(() => {
-    return activeSlot === "A" ? videoRefA.current : videoRefB.current;
-  }, [activeSlot]);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
 
-  useEffect(() => {
-    isMutedRef.current = isMuted;
-  }, [isMuted]);
-
-  useEffect(() => {
-    isFullscreenRef.current = isFullscreen;
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const video = getActiveVideo();
-    if (video) {
-      video.playbackRate = playbackRate;
-    }
-  }, [playbackRate, getActiveVideo]);
-
   // Deferred Spinner
   useEffect(() => {
-    if (isLoading && !isSeamlessSwitchingRef.current) {
+    if (isLoading) {
       if (!spinnerTimerRef.current) {
         spinnerTimerRef.current = setTimeout(() => {
           setShowSpinner(true);
@@ -310,88 +284,58 @@ export default function CustomVideoPlayer({
     }
   }, [id, season, episode, mediaType, title, allIds]);
 
-  // Dual Video Seamless Buffer Switcher
+  // Video URL and source syncing
   useEffect(() => {
     const newLink = selectedFile?.stream_link;
     if (!newLink) {
-      setSlotAUrl("");
-      setSlotBUrl("");
+      setVideoUrl("");
       return;
     }
 
-    const isFirstLoad = !slotAUrl && !slotBUrl;
-
-    if (isFirstLoad) {
-      setSlotAUrl(newLink);
-      setActiveSlot("A");
-      setIsLoading(true);
-    } else {
-      const activeUrl = activeSlot === "A" ? slotAUrl : slotBUrl;
-      if (activeUrl === newLink) return;
-
-      // Seamless background swap: keep active video playing continuously!
-      isSeamlessSwitchingRef.current = true;
-      const targetSlot = activeSlot === "A" ? "B" : "A";
-
-      if (targetSlot === "B") {
-        setSlotBUrl(newLink);
-      } else {
-        setSlotAUrl(newLink);
-      }
-    }
-  }, [selectedFile, activeSlot, slotAUrl, slotBUrl]);
-
-  // Handle when a video slot is loaded and ready
-  const handleSlotReady = (slot: "A" | "B") => {
-    const targetVideo = slot === "A" ? videoRefA.current : videoRefB.current;
-    const activeVideo = getActiveVideo();
-
-    if (!targetVideo) return;
-
-    // Initial mount load
-    if (!isSeamlessSwitchingRef.current && slot === activeSlot) {
-      const dur = targetVideo.duration;
-      setDuration(dur);
-      setIsLoading(false);
-
-      if (previousTimeRef.current > 0 && previousTimeRef.current < dur * 0.95) {
-        targetVideo.currentTime = previousTimeRef.current;
-        setCurrentTime(previousTimeRef.current);
-      }
-
-      if (onReady) onReady();
-      targetVideo
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch(() => setIsPlaying(false));
-      return;
+    if (videoRef.current && videoRef.current.currentTime > 0) {
+      pendingTimestampRef.current = videoRef.current.currentTime;
     }
 
-    // Seamless background stream swap:
-    if (isSeamlessSwitchingRef.current && slot !== activeSlot && activeVideo) {
-      const currentTimestamp = activeVideo.currentTime;
-      const wasPlaying = !activeVideo.paused;
+    setVideoUrl(newLink);
+    setVideoError(false);
+  }, [selectedFile]);
 
-      targetVideo.currentTime = currentTimestamp;
-      targetVideo.playbackRate = playbackRate;
-      targetVideo.volume = volume;
-      targetVideo.muted = isMuted;
+  // Handle Video Metadata Loaded & Autoplay
+  const handleLoadedMetadata = () => {
+    if (!videoRef.current) return;
+    const dur = videoRef.current.duration;
+    setDuration(dur);
+    setIsLoading(false);
 
-      if (wasPlaying) {
-        targetVideo.play().then(() => {
-          setActiveSlot(slot);
-          activeVideo.pause();
-          setIsPlaying(true);
-          isSeamlessSwitchingRef.current = false;
-        }).catch(() => {
-          setActiveSlot(slot);
-          isSeamlessSwitchingRef.current = false;
-        });
-      } else {
-        setActiveSlot(slot);
-        activeVideo.pause();
-        isSeamlessSwitchingRef.current = false;
-      }
+    if (pendingTimestampRef.current && pendingTimestampRef.current > 0) {
+      videoRef.current.currentTime = pendingTimestampRef.current;
+      setCurrentTime(pendingTimestampRef.current);
+      pendingTimestampRef.current = null;
+    } else if (previousTimeRef.current > 0 && previousTimeRef.current < dur * 0.95) {
+      videoRef.current.currentTime = previousTimeRef.current;
+      setCurrentTime(previousTimeRef.current);
+    }
+
+    if (onReady) onReady();
+    videoRef.current
+      .play()
+      .then(() => setIsPlaying(true))
+      .catch(() => {
+        // If browser blocks unmuted autoplay, mute and play smoothly
+        if (videoRef.current) {
+          videoRef.current.muted = true;
+          setIsMuted(true);
+          videoRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+        }
+      });
+  };
+
+  const handleCanPlay = () => {
+    setIsLoading(false);
+    if (videoRef.current && pendingTimestampRef.current && pendingTimestampRef.current > 0) {
+      videoRef.current.currentTime = pendingTimestampRef.current;
+      pendingTimestampRef.current = null;
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
     }
   };
 
@@ -471,17 +415,15 @@ export default function CustomVideoPlayer({
     }
   };
 
-  const handleTimeUpdate = (slot: "A" | "B") => {
-    if (slot !== activeSlot) return;
-    const video = getActiveVideo();
-    if (video && !isScrubbingRef.current) {
-      const cur = video.currentTime;
-      const dur = video.duration;
+  const handleTimeUpdate = () => {
+    if (videoRef.current && !isScrubbingRef.current) {
+      const cur = videoRef.current.currentTime;
+      const dur = videoRef.current.duration;
       setCurrentTime(cur);
 
-      if (video.buffered.length > 0) {
+      if (videoRef.current.buffered.length > 0) {
         try {
-          const bufEnd = video.buffered.end(video.buffered.length - 1);
+          const bufEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
           setBufferedTime(bufEnd);
         } catch {}
       }
@@ -510,13 +452,13 @@ export default function CustomVideoPlayer({
 
   // Immediate Click-To-Play / Pause
   const togglePlay = () => {
-    const video = getActiveVideo();
-    if (!video) return;
+    if (!videoRef.current) return;
     if (isPlaying) {
-      video.pause();
+      videoRef.current.pause();
+      setIsPlaying(false);
       setSplashAction("pause");
     } else {
-      video.play().catch(console.error);
+      videoRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
       setSplashAction("play");
     }
     setTimeout(() => setSplashAction(null), 500);
@@ -524,9 +466,8 @@ export default function CustomVideoPlayer({
   };
 
   const toggleMute = () => {
-    const video = getActiveVideo();
-    if (!video) return;
-    video.muted = !isMuted;
+    if (!videoRef.current) return;
+    videoRef.current.muted = !isMuted;
     setIsMuted(!isMuted);
     resetControlsTimeout();
   };
@@ -534,21 +475,19 @@ export default function CustomVideoPlayer({
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
-    const video = getActiveVideo();
-    if (video) {
-      video.volume = val;
-      video.muted = val === 0;
+    if (videoRef.current) {
+      videoRef.current.volume = val;
+      videoRef.current.muted = val === 0;
       setIsMuted(val === 0);
     }
     resetControlsTimeout();
   };
 
   const skip = (seconds: number) => {
-    const video = getActiveVideo();
-    if (!video) return;
-    video.currentTime = Math.max(
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(
       0,
-      Math.min(duration, video.currentTime + seconds)
+      Math.min(duration, videoRef.current.currentTime + seconds)
     );
     resetControlsTimeout();
   };
@@ -564,13 +503,12 @@ export default function CustomVideoPlayer({
   };
 
   const togglePictureInPicture = async () => {
-    const video = getActiveVideo();
-    if (!video) return;
+    if (!videoRef.current) return;
     try {
       if (document.pictureInPictureElement) {
         await document.exitPictureInPicture();
       } else if (document.pictureInPictureEnabled) {
-        await video.requestPictureInPicture();
+        await videoRef.current.requestPictureInPicture();
       }
     } catch (e) {
       console.error("PiP error", e);
@@ -581,17 +519,16 @@ export default function CustomVideoPlayer({
   // Timeline Dragging & Scrubbing
   const updateScrubTime = useCallback(
     (clientX: number) => {
-      const video = getActiveVideo();
-      if (!timelineRef.current || !video || duration <= 0) return;
+      if (!timelineRef.current || !videoRef.current || duration <= 0) return;
       const rect = timelineRef.current.getBoundingClientRect();
       const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const target = pos * duration;
-      video.currentTime = target;
+      videoRef.current.currentTime = target;
       setCurrentTime(target);
       setHoverPos(clientX - rect.left);
       setHoverTime(target);
     },
-    [duration, getActiveVideo]
+    [duration]
   );
 
   const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -607,9 +544,8 @@ export default function CustomVideoPlayer({
       isScrubbingRef.current = false;
       setIsDraggingTimeline(false);
       updateScrubTime(upEvent.clientX);
-      const video = getActiveVideo();
-      if (video) {
-        saveProgress(video.currentTime, duration);
+      if (videoRef.current) {
+        saveProgress(videoRef.current.currentTime, duration);
       }
       window.removeEventListener("mousemove", handleMouseMoveWindow);
       window.removeEventListener("mouseup", handleMouseUpWindow);
@@ -662,10 +598,9 @@ export default function CustomVideoPlayer({
           e.preventDefault();
           setVolume((v) => {
             const next = Math.min(1, v + 0.1);
-            const video = getActiveVideo();
-            if (video) {
-              video.volume = next;
-              video.muted = false;
+            if (videoRef.current) {
+              videoRef.current.volume = next;
+              videoRef.current.muted = false;
             }
             setIsMuted(false);
             return next;
@@ -676,10 +611,9 @@ export default function CustomVideoPlayer({
           e.preventDefault();
           setVolume((v) => {
             const next = Math.max(0, v - 0.1);
-            const video = getActiveVideo();
-            if (video) {
-              video.volume = next;
-              video.muted = next === 0;
+            if (videoRef.current) {
+              videoRef.current.volume = next;
+              videoRef.current.muted = next === 0;
             }
             setIsMuted(next === 0);
             return next;
@@ -732,7 +666,7 @@ export default function CustomVideoPlayer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isPlaying, duration, onNextEpisode, mediaType, resetControlsTimeout, getActiveVideo]);
+  }, [isPlaying, duration, onNextEpisode, mediaType, resetControlsTimeout]);
 
   const handleSelectDub = (dub: any) => {
     const targetId = String(dub.subject_id || dub.detail_path || "");
@@ -769,8 +703,6 @@ export default function CustomVideoPlayer({
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferPercent = duration > 0 ? (bufferedTime / duration) * 100 : 0;
 
-  const hasSource = Boolean(slotAUrl || slotBUrl);
-
   return (
     <div
       ref={containerRef}
@@ -780,63 +712,31 @@ export default function CustomVideoPlayer({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
-      {hasSource ? (
-        <>
-          {/* Dual Video Elements for Seamless Crossfade */}
-          {slotAUrl && (
-            <div
-              className={`${styles.videoSlot} ${
-                activeSlot === "A" ? styles.videoSlotActive : styles.videoSlotInactive
-              }`}
-            >
-              <video
-                ref={videoRefA}
-                src={slotAUrl}
-                className={`${styles.video} ${
-                  aspectMode === "cover"
-                    ? styles.videoCover
-                    : aspectMode === "fill"
-                    ? styles.videoFill
-                    : styles.videoContain
-                }`}
-                playsInline
-                onTimeUpdate={() => handleTimeUpdate("A")}
-                onLoadedMetadata={() => handleSlotReady("A")}
-                onCanPlay={() => handleSlotReady("A")}
-                onPlaying={() => activeSlot === "A" && setIsPlaying(true)}
-                onPause={() => activeSlot === "A" && setIsPlaying(false)}
-                onError={() => activeSlot === "A" && setVideoError(true)}
-              />
-            </div>
-          )}
-
-          {slotBUrl && (
-            <div
-              className={`${styles.videoSlot} ${
-                activeSlot === "B" ? styles.videoSlotActive : styles.videoSlotInactive
-              }`}
-            >
-              <video
-                ref={videoRefB}
-                src={slotBUrl}
-                className={`${styles.video} ${
-                  aspectMode === "cover"
-                    ? styles.videoCover
-                    : aspectMode === "fill"
-                    ? styles.videoFill
-                    : styles.videoContain
-                }`}
-                playsInline
-                onTimeUpdate={() => handleTimeUpdate("B")}
-                onLoadedMetadata={() => handleSlotReady("B")}
-                onCanPlay={() => handleSlotReady("B")}
-                onPlaying={() => activeSlot === "B" && setIsPlaying(true)}
-                onPause={() => activeSlot === "B" && setIsPlaying(false)}
-                onError={() => activeSlot === "B" && setVideoError(true)}
-              />
-            </div>
-          )}
-        </>
+      {videoUrl ? (
+        <video
+          ref={videoRef}
+          src={videoUrl}
+          autoPlay
+          playsInline
+          preload="auto"
+          className={`${styles.video} ${
+            aspectMode === "cover"
+              ? styles.videoCover
+              : aspectMode === "fill"
+              ? styles.videoFill
+              : styles.videoContain
+          }`}
+          onTimeUpdate={handleTimeUpdate}
+          onLoadedMetadata={handleLoadedMetadata}
+          onCanPlay={handleCanPlay}
+          onWaiting={() => setIsLoading(true)}
+          onPlaying={() => {
+            setIsLoading(false);
+            setIsPlaying(true);
+          }}
+          onPause={() => setIsPlaying(false)}
+          onError={() => setVideoError(true)}
+        />
       ) : (
         <div className={styles.noSource}>Loading streaming source…</div>
       )}
@@ -856,10 +756,9 @@ export default function CustomVideoPlayer({
             onClick={() => {
               setVideoError(false);
               setIsLoading(true);
-              const video = getActiveVideo();
-              if (video) {
-                video.load();
-                video.play().catch(console.error);
+              if (videoRef.current) {
+                videoRef.current.load();
+                videoRef.current.play().catch(console.error);
               }
             }}
             className={styles.errorRetryBtn}
@@ -1202,9 +1101,8 @@ export default function CustomVideoPlayer({
                                 key={rate}
                                 onClick={() => {
                                   setPlaybackRate(rate);
-                                  const video = getActiveVideo();
-                                  if (video) {
-                                    video.playbackRate = rate;
+                                  if (videoRef.current) {
+                                    videoRef.current.playbackRate = rate;
                                   }
                                   setShowSettings(false);
                                 }}

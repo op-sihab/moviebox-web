@@ -215,8 +215,7 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
     }
     setIsHovered(false);
     if (playHref) {
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      router.push(playHref, { scroll: true });
+      router.push(playHref, { scroll: false });
     }
   };
 
@@ -229,8 +228,7 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
     }
     setIsHovered(false);
     if (detailHref) {
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-      router.push(detailHref, { scroll: true });
+      router.push(detailHref, { scroll: false });
     }
   };
 
@@ -258,7 +256,7 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
       {/* Base Card */}
       <Link
         href={isContinueWatching ? playHref : detailHref}
-        scroll={true}
+        scroll={false}
         className={styles.cardLink}
         onClick={() => {
           if (hoverTimerRef.current) {
@@ -266,7 +264,6 @@ function MovieCard({ movie, priority = false }: MovieCardProps) {
             hoverTimerRef.current = null;
           }
           setIsHovered(false);
-          if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
         }}
       >
         <div className={styles.card}>

@@ -304,10 +304,10 @@ function SearchInner() {
                       <Link
                         key={`sugg-${itemId}`}
                         href={`/${itemType === "tv" ? "tv" : "movie"}/${itemId}`}
+                        scroll={false}
                         className={styles.suggestionItem}
                         onClick={() => {
                           setIsDropdownOpen(false);
-                          if (typeof window !== "undefined") window.scrollTo({ top: 0, left: 0, behavior: "instant" });
                         }}
                       >
                         <div className={styles.suggestionPosterWrap}>

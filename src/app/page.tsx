@@ -226,6 +226,7 @@ export default async function Home() {
             <div className={styles.heroActions}>
               <Link
                 href={`/watch/${heroMovie.detailPath}`}
+                scroll={false}
                 className={styles.playButton}
               >
                 <Play fill="currentColor" size={18} />
@@ -233,6 +234,7 @@ export default async function Home() {
               </Link>
               <Link
                 href={`/${heroMovie.mediaType === "tv" ? "tv" : "movie"}/${heroMovie.detailPath}`}
+                scroll={false}
                 className={styles.infoButton}
               >
                 <Info size={18} />

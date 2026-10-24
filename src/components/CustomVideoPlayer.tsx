@@ -23,6 +23,7 @@ import {
   Airplay,
   HelpCircle,
   Search,
+  X,
 } from "lucide-react";
 import { matchesDubId, prefetchDownload } from "@/services/contentCache";
 
@@ -48,6 +49,9 @@ interface CustomVideoPlayerProps {
   onReady?: () => void;
   dubs?: any[];
   onDubChange?: (dub: any) => void;
+  brandingLogo?: string;
+  brandingUrl?: string;
+  showBranding?: boolean;
 }
 
 export default function CustomVideoPlayer({
@@ -72,7 +76,13 @@ export default function CustomVideoPlayer({
   onReady,
   dubs,
   onDubChange,
+  brandingLogo,
+  brandingUrl = "/",
+  showBranding = true,
 }: CustomVideoPlayerProps) {
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [isFloating, setIsFloating] = useState(false);
+  const [isFloatingDismissed, setIsFloatingDismissed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -123,6 +133,28 @@ export default function CustomVideoPlayer({
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
+
+  // Floating Mini-Player when scrolled out of view
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const isOutOfView = entry.intersectionRatio < 0.25;
+        if (isOutOfView && isPlaying && !isFloatingDismissed) {
+          setIsFloating(true);
+        } else if (!isOutOfView) {
+          setIsFloating(false);
+          setIsFloatingDismissed(false);
+        }
+      },
+      { threshold: [0.25] }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isPlaying, isFloatingDismissed]);
 
   // Deferred Spinner
   useEffect(() => {
@@ -562,6 +594,11 @@ export default function CustomVideoPlayer({
       setCurrentTime(target);
       setHoverPos(clientX - rect.left);
       setHoverTime(target);
+      if (previewVideoRef.current && Number.isFinite(target)) {
+        try {
+          previewVideoRef.current.currentTime = target;
+        } catch {}
+      }
     },
     [duration]
   );
@@ -594,8 +631,14 @@ export default function CustomVideoPlayer({
     if (!timelineRef.current || duration <= 0) return;
     const rect = timelineRef.current.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const target = pos * duration;
     setHoverPos(e.clientX - rect.left);
-    setHoverTime(pos * duration);
+    setHoverTime(target);
+    if (previewVideoRef.current && Number.isFinite(target)) {
+      try {
+        previewVideoRef.current.currentTime = target;
+      } catch {}
+    }
   };
 
   const handleTimelineMouseLeave = () => {
@@ -751,15 +794,31 @@ export default function CustomVideoPlayer({
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferPercent = duration > 0 ? (bufferedTime / duration) * 100 : 0;
 
+  const showFloating = isFloating && !isFullscreen;
+
   return (
     <div
       ref={containerRef}
       className={`${styles.playerContainer} ${isFullscreen ? styles.fullscreen : ""} ${
         fillParent ? styles.fillParent : ""
-      }`}
+      } ${showFloating ? styles.floatingPlayer : ""}`}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => isPlaying && setShowControls(false)}
     >
+      {showFloating && (
+        <button
+          className={styles.floatingCloseBtn}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFloating(false);
+            setIsFloatingDismissed(true);
+          }}
+          title="Close floating mini player"
+          aria-label="Close floating mini player"
+        >
+          <X size={15} />
+        </button>
+      )}
       {videoUrl ? (
         <video
           ref={videoRef}
@@ -848,6 +907,22 @@ export default function CustomVideoPlayer({
           </div>
 
           <div className={styles.headerBadges}>
+            {showBranding && (
+              <Link
+                href={brandingUrl}
+                className={styles.brandingLogoBtn}
+                title="CineAura"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {brandingLogo ? (
+                  <img src={brandingLogo} alt="Logo" className={styles.brandingLogoImg} />
+                ) : (
+                  <span className={styles.brandingWordmark}>
+                    CINE<span className={styles.brandingRed}>AURA</span>
+                  </span>
+                )}
+              </Link>
+            )}
             {selectedFile?.resolution && (
               <span className={styles.headerPill}>{selectedFile.resolution}</span>
             )}
@@ -875,8 +950,37 @@ export default function CustomVideoPlayer({
               <div className={styles.timelineThumb} style={{ left: `${progressPercent}%` }} />
             </div>
             {hoverTime !== null && (
-              <div className={styles.timelineHoverTime} style={{ left: `${hoverPos}px` }}>
-                {formatTime(hoverTime)}
+              <div
+                className={styles.seekThumbnailTooltip}
+                style={{
+                  left: `${Math.max(
+                    85,
+                    Math.min(hoverPos, (timelineRef.current?.clientWidth || 300) - 85)
+                  )}px`,
+                }}
+              >
+                <div className={styles.seekThumbnailCard}>
+                  {posterPath && (
+                    <img
+                      src={posterPath}
+                      alt="Preview"
+                      className={styles.seekThumbnailFallback}
+                    />
+                  )}
+                  {videoUrl && (
+                    <video
+                      ref={previewVideoRef}
+                      src={videoUrl}
+                      preload="auto"
+                      muted
+                      playsInline
+                      className={styles.seekThumbnailVideo}
+                    />
+                  )}
+                  <div className={styles.seekThumbnailTimeBadge}>
+                    {formatTime(hoverTime)}
+                  </div>
+                </div>
               </div>
             )}
           </div>

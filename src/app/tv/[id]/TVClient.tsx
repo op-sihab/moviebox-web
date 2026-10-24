@@ -29,6 +29,7 @@ import {
   prefetchDownload,
   prefetchDetails,
   matchesDubId,
+  prefetchAllDubs,
 } from "@/services/contentCache";
 import { getSeasonEpisodes } from "@/services/tmdb";
 import { buildSeasonMapping } from "@/services/seasonMapper";
@@ -245,6 +246,9 @@ export default function TVClient({ id }: TVClientProps) {
 
         // Predictive Async Pre-warming
         prefetchDownload(activeId, continueRecord?.season || fetchFirstSeason, continueRecord?.episode || 1, "tv");
+        if (data.dubs && data.dubs.length > 0) {
+          prefetchAllDubs(data.dubs, continueRecord?.season || fetchFirstSeason, continueRecord?.episode || 1, "tv");
+        }
 
         if (data.movie?.title && (!data.backdropUrl || !data.logoUrl || !data.tmdbId)) {
           fetchTmdb(activeId, "tv", data.movie.title)

@@ -16,6 +16,7 @@ import {
   fetchTmdb,
   fetchSeasonEpisodes,
   matchesDubId,
+  prefetchAllDubs,
 } from "@/services/contentCache";
 import { buildSeasonMapping } from "@/services/seasonMapper";
 
@@ -189,6 +190,21 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     };
   }, [currentSeason, currentEpisode, activeId, isSeries, movie, seasonMapping]);
 
+  // 3. Parallel pre-warming of all available language dubs
+  // Preloads all audio dub streams in parallel so switching between languages happens instantly in 0ms
+  useEffect(() => {
+    if (!dubs || dubs.length <= 1) return;
+
+    const backendCoords = isSeries
+      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
+      : { mbxSeason: 0, mbxEpisode: 0 };
+    const s = backendCoords.mbxSeason;
+    const e = backendCoords.mbxEpisode;
+    const type = isSeries ? "tv" : "movie";
+
+    prefetchAllDubs(dubs, s, e, type);
+  }, [dubs, currentSeason, currentEpisode, isSeries, seasonMapping]);
+
   // Determine next episode
   const nextEp = useMemo(() => {
     if (!isSeries || !seasonMapping.mappedSeasons.length) return null;
@@ -342,6 +358,18 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", `/watch/${targetId}${query}`);
+    }
+
+    // Instant switch: If parallel pre-warming already cached the stream in memory, swap immediately in 0ms!
+    const backendCoords = isSeries
+      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
+      : { mbxSeason: 0, mbxEpisode: 0 };
+    const s = backendCoords.mbxSeason;
+    const e = backendCoords.mbxEpisode;
+    const cachedFiles = getCachedDownload(targetId, s, e);
+    if (cachedFiles && cachedFiles.length > 0) {
+      setFiles(cachedFiles);
+      setLoadingFiles(false);
     }
 
     // Refresh core movie details so title matches the newly selected audio dub

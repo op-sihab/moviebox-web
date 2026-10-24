@@ -24,7 +24,7 @@ import {
   HelpCircle,
   Search,
 } from "lucide-react";
-import { matchesDubId } from "@/services/contentCache";
+import { matchesDubId, prefetchDownload } from "@/services/contentCache";
 
 interface CustomVideoPlayerProps {
   id: string;
@@ -1122,10 +1122,21 @@ export default function CustomVideoPlayer({
                             else if (isOrig) displayName = "Original Audio";
                             else if (!/dub/i.test(displayName)) displayName = `${displayName} Dub`;
 
+                            const targetDubId = String(dub.detail_path || dub.detailPath || dub.subject_id || dub.subjectId || "");
                             return (
                               <button
                                 key={dubId}
                                 onClick={() => handleSelectDub(dub)}
+                                onMouseEnter={() => {
+                                  if (targetDubId && !isActive) {
+                                    prefetchDownload(targetDubId, season || 0, episode || 0, mediaType || "movie");
+                                  }
+                                }}
+                                onTouchStart={() => {
+                                  if (targetDubId && !isActive) {
+                                    prefetchDownload(targetDubId, season || 0, episode || 0, mediaType || "movie");
+                                  }
+                                }}
                                 className={`${styles.menuItem} ${isActive ? styles.activeItem : ""}`}
                               >
                                 <span>{displayName}</span>
@@ -1295,10 +1306,21 @@ export default function CustomVideoPlayer({
               else if (isOrig) displayName = "Original";
               else displayName = rawName.replace(/\bdub\b/gi, "").trim() || rawName;
 
+              const targetDubId = String(dub.detail_path || dub.detailPath || dub.subject_id || dub.subjectId || "");
               return (
                 <button
                   key={dubId}
                   onClick={() => handleSelectDub(dub)}
+                  onMouseEnter={() => {
+                    if (targetDubId && !isActive) {
+                      prefetchDownload(targetDubId, season || 0, episode || 0, mediaType || "movie");
+                    }
+                  }}
+                  onTouchStart={() => {
+                    if (targetDubId && !isActive) {
+                      prefetchDownload(targetDubId, season || 0, episode || 0, mediaType || "movie");
+                    }
+                  }}
                   className={`${styles.audioDubItem} ${isActive ? styles.audioDubItemActive : ""}`}
                 >
                   <div className={styles.audioDubLeft}>

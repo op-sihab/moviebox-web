@@ -649,6 +649,25 @@ export function prefetchDownload(id: string, season: number, episode: number, ty
 }
 
 /**
+ * Pre-warms streaming links for all available audio dubs in parallel.
+ * When the user switches language, the stream is already cached in memory for instantaneous playback.
+ */
+export function prefetchAllDubs(
+  dubs: any[],
+  season: number,
+  episode: number,
+  type: "movie" | "tv" = "movie"
+) {
+  if (!Array.isArray(dubs) || dubs.length <= 1) return;
+  dubs.forEach((d: any) => {
+    const dubId = String(d.detail_path || d.detailPath || d.subject_id || d.subjectId || "");
+    if (dubId) {
+      prefetchDownload(dubId, season, episode, type);
+    }
+  });
+}
+
+/**
  * Explicit helper for Predictive Async Pre-warming on detail pages.
  */
 export function warmDetailStreams(id: string, isTv: boolean, season = 1, episode = 1) {

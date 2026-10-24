@@ -17,6 +17,7 @@ import {
   prefetchDownload,
   prefetchDetails,
   matchesDubId,
+  prefetchAllDubs,
 } from "@/services/contentCache";
 import { img } from "@/services/image";
 import { isInMyList, toggleMyList } from "@/services/mylist";
@@ -184,6 +185,9 @@ export default function MovieClient({ id }: MovieClientProps) {
 
         // Predictive Async Pre-warming: load video stream in background
         prefetchDownload(activeId, 0, 0, "movie");
+        if (data.dubs && data.dubs.length > 0) {
+          prefetchAllDubs(data.dubs, 0, 0, "movie");
+        }
 
         // 2. NON-BLOCKING: Additional TMDB enrichment (cast avatars, overview fallback if needed)
         if (data.movie?.title && (!data.backdropUrl || !data.logoUrl || !data.tmdbId)) {

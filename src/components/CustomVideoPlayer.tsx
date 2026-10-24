@@ -300,19 +300,20 @@ export default function CustomVideoPlayer({
       return;
     }
 
+    if (newLink === videoUrl) return;
+
     if (videoRef.current && videoRef.current.currentTime > 0) {
       pendingTimestampRef.current = videoRef.current.currentTime;
     }
 
     setVideoUrl(newLink);
     setVideoError(false);
-    setIsLoading(true);
 
-    if (videoRef.current) {
-      videoRef.current.load();
-      videoRef.current.play().catch(() => {});
+    // Only show full loading overlay on cold startup when there was no previous stream
+    if (!videoUrl) {
+      setIsLoading(true);
     }
-  }, [selectedFile, id]);
+  }, [selectedFile, videoUrl]);
 
   // Handle Video Metadata Loaded & Autoplay
   const handleLoadedMetadata = () => {
@@ -761,7 +762,6 @@ export default function CustomVideoPlayer({
     >
       {videoUrl ? (
         <video
-          key={id}
           ref={videoRef}
           src={videoUrl}
           autoPlay

@@ -631,6 +631,9 @@ export function fetchDownload(id: string, season: number, episode: number, type:
       if (rawSubs.length > 0) {
         subtitlesCache.set(key, rawSubs);
       }
+      if (files.length > 0 && files[0]?.stream_link) {
+        preloadMediaStream(files[0].stream_link);
+      }
       return files;
     })();
     pendingDownloads[key].catch(() => {}).finally(() => {
@@ -638,6 +641,43 @@ export function fetchDownload(id: string, season: number, episode: number, type:
     });
   }
   return pendingDownloads[key];
+}
+
+const preloadedStreamUrls = new Set<string>();
+
+/**
+ * Pre-warms CDN connection and buffers MP4 metadata/headers into browser cache.
+ */
+export function preloadMediaStream(url: string) {
+  if (typeof window === "undefined" || !url || preloadedStreamUrls.has(url)) return;
+  preloadedStreamUrls.add(url);
+
+  try {
+    const host = new URL(url).origin;
+    if (!document.querySelector(`link[rel="preconnect"][href="${host}"]`)) {
+      const link = document.createElement("link");
+      link.rel = "preconnect";
+      link.href = host;
+      link.crossOrigin = "anonymous";
+      document.head.appendChild(link);
+    }
+  } catch {}
+
+  try {
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.muted = true;
+    v.src = url;
+    const cleanUp = () => {
+      v.src = "";
+      v.remove();
+    };
+    v.onloadedmetadata = () => {
+      setTimeout(cleanUp, 15000);
+    };
+    v.onerror = cleanUp;
+    setTimeout(cleanUp, 20000);
+  } catch {}
 }
 
 /**

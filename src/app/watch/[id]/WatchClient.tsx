@@ -369,6 +369,11 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     const cachedFiles = getCachedDownload(targetId, s, e);
     if (cachedFiles && cachedFiles.length > 0) {
       setFiles(cachedFiles);
+      const currentRes = selectedFile?.resolution;
+      const matched = cachedFiles.find((f: any) => f.resolution === currentRes) || cachedFiles[0];
+      if (matched) {
+        setSelectedFile(matched);
+      }
       setLoadingFiles(false);
     }
 

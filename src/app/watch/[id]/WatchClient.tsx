@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import styles from "./page.module.css";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -15,6 +15,7 @@ import {
   fetchDownload,
   fetchTmdb,
   fetchSeasonEpisodes,
+  matchesDubId,
 } from "@/services/contentCache";
 import { buildSeasonMapping } from "@/services/seasonMapper";
 
@@ -30,18 +31,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
 
   const [activeId, setActiveId] = useState(id);
 
-  useEffect(() => {
-    if (id && id !== activeId) {
-      setActiveId(id);
-    }
-  }, [id, activeId]);
-
   const [movie, setMovie] = useState<any>(null);
   const [seasonsData, setSeasonsData] = useState<any>(null);
   const [tmdbMeta, setTmdbMeta] = useState<any>(null);
   const [dubs, setDubs] = useState<any[]>([]);
   const [rawApiEpisodes, setRawApiEpisodes] = useState<any[]>([]);
   const [detailsLoading, setDetailsLoading] = useState(true);
+  const userSelectedDub = useRef(false);
 
   const isSeries =
     movie?.subjectType === 2 ||
@@ -87,7 +83,10 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       setMovie(core.movie);
       setSeasonsData(core.seasons);
       if (core.episodes) setRawApiEpisodes(core.episodes);
-      setDubs(core.dubs || []);
+      const availableDubs = core.dubs || [];
+      setDubs(availableDubs);
+
+
       if (core.tmdbId && !cachedTmdbMeta?.meta) {
         setTmdbMeta({ id: core.tmdbId, name: core.movie?.title });
       }
@@ -107,7 +106,10 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           setMovie(data.movie);
           setSeasonsData(data.seasons);
           if (data.episodes) setRawApiEpisodes(data.episodes);
-          setDubs(data.dubs || []);
+          const availableDubs = data.dubs || [];
+          setDubs(availableDubs);
+
+
           if (data.tmdbId) {
             setTmdbMeta({ id: data.tmdbId, name: data.movie?.title });
           }
@@ -129,7 +131,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     };
   }, [activeId]);
 
-  // Sync selectedFile when files change
+  // Sync selectedFile when files change (preserving resolution if user had selected one)
   useEffect(() => {
     const playable = (files || []).filter(
       (f: any) =>
@@ -138,7 +140,10 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     if (playable.length === 0) {
       return;
     }
+    const currentRes = selectedFile?.resolution;
+    const matchedFile = currentRes ? playable.find((f: any) => f.resolution === currentRes) : null;
     const defaultFile =
+      matchedFile ||
       playable.find((f: any) => f.resolution === "1080p") ||
       playable.find((f: any) => f.resolution === "720p") ||
       playable.find((f: any) => f.resolution === "480p") ||
@@ -319,9 +324,19 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
 
   // Seamless in-place audio dub switch without unmounting player or refreshing page
   const handleDubChange = async (targetDub: any) => {
-    const targetId = String(targetDub.subject_id || targetDub.detail_path || "");
-    if (!targetId || targetId === String(activeId)) return;
+    const targetId = String(
+      targetDub.detail_path ||
+      targetDub.detailPath ||
+      targetDub.subject_id ||
+      targetDub.subjectId ||
+      ""
+    );
+    const cleanActiveId = String(activeId || "");
+    const isCurrent = matchesDubId(targetDub, cleanActiveId);
 
+    if (!targetId || isCurrent) return;
+
+    userSelectedDub.current = true;
     setActiveId(targetId);
 
     const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
@@ -329,25 +344,12 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       window.history.replaceState(null, "", `/watch/${targetId}${query}`);
     }
 
-    const backendCoords = isSeries
-      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
-      : { mbxSeason: 0, mbxEpisode: 0 };
-    const s = backendCoords.mbxSeason;
-    const e = backendCoords.mbxEpisode;
-
-    const cached = getCachedDownload(targetId, s, e);
-    if (cached && cached.length > 0) {
-      setFiles(cached);
-    } else {
-      try {
-        const newFiles = await fetchDownload(targetId, s, e, isSeries ? "tv" : "movie");
-        if (newFiles && newFiles.length > 0) {
-          setFiles(newFiles);
-        }
-      } catch (err) {
-        console.error("Failed to switch audio stream", err);
-      }
-    }
+    // Refresh core movie details so title matches the newly selected audio dub
+    fetchCore(targetId, isSeries ? "tv" : "movie")
+      .then((data) => {
+        if (data.movie) setMovie(data.movie);
+      })
+      .catch(() => {});
   };
 
   const backHref = `/${isSeries ? "tv" : "movie"}/${activeId}`;

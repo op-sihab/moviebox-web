@@ -24,6 +24,7 @@ import {
   HelpCircle,
   Search,
 } from "lucide-react";
+import { matchesDubId } from "@/services/contentCache";
 
 interface CustomVideoPlayerProps {
   id: string;
@@ -146,21 +147,22 @@ export default function CustomVideoPlayer({
     };
   }, [isLoading]);
 
-  // Sorted Dubs: Hindi first, Original second, others after
+  // Sorted Dubs: Original first, other languages alphabetically
   const sortedDubs = useMemo(() => {
     if (!dubs || dubs.length === 0) return [];
-    return [...dubs].sort((a: any, b: any) => {
-      const aIsHindi = /hindi/i.test(a?.language_name || a?.language || "");
-      const bIsHindi = /hindi/i.test(b?.language_name || b?.language || "");
-      if (aIsHindi && !bIsHindi) return -1;
-      if (!aIsHindi && bIsHindi) return 1;
+    const audioDubs = dubs.filter(
+      (d: any) => d.type === 0 || (!d.type && !d.isSub && !/\bsub\b/i.test(d.language_name || d.lanName || d.language || ""))
+    );
+    return [...audioDubs].sort((a: any, b: any) => {
+      const aName = a?.displayName || a?.language_name || a?.language || a?.lanName || "";
+      const bName = b?.displayName || b?.language_name || b?.language || b?.lanName || "";
 
-      const aIsOrig = a?.is_original || /original/i.test(a?.language_name || a?.language || "");
-      const bIsOrig = b?.is_original || /original/i.test(b?.language_name || b?.language || "");
+      const aIsOrig = a?.is_original || a?.original || /original/i.test(aName);
+      const bIsOrig = b?.is_original || b?.original || /original/i.test(bName);
       if (aIsOrig && !bIsOrig) return -1;
       if (!aIsOrig && bIsOrig) return 1;
 
-      return 0;
+      return aName.localeCompare(bName);
     });
   }, [dubs]);
 
@@ -168,31 +170,35 @@ export default function CustomVideoPlayer({
     if (!audioSearch.trim()) return sortedDubs;
     const q = audioSearch.toLowerCase().trim();
     return sortedDubs.filter((d: any) => {
-      const name = (d.language_name || d.language || "").toLowerCase();
+      const name = (d.displayName || d.language_name || d.lanName || d.language || "").toLowerCase();
       return name.includes(q);
     });
   }, [sortedDubs, audioSearch]);
 
   const currentDub = useMemo(() => {
-    if (!dubs || dubs.length === 0) return null;
-    return (
-      dubs.find(
-        (d: any) =>
-          String(d.subject_id) === String(id) ||
-          String(d.detail_path) === String(id) ||
-          String(d.subjectId) === String(id)
-      ) ||
-      dubs.find((d: any) => /hindi/i.test(d.language_name || d.language || "")) ||
-      dubs[0]
+    if (!sortedDubs || sortedDubs.length === 0) return null;
+    const cleanId = String(id || "");
+
+    // 1. Match ID directly or via unique slug hash
+    const match = sortedDubs.find((d: any) => matchesDubId(d, cleanId));
+    if (match) return match;
+
+    // 2. Natural default: Original Audio
+    const originalDub = sortedDubs.find(
+      (d: any) => d.is_original || d.original || /original/i.test(d.displayName || d.language_name || d.lanName || d.language || "")
     );
-  }, [dubs, id]);
+    if (originalDub) return originalDub;
+
+    // 3. Fallback to first audio dub
+    return sortedDubs[0];
+  }, [sortedDubs, id]);
 
   const currentDubName = useMemo(() => {
     if (!currentDub) return "";
-    const name = currentDub.language_name || currentDub.language || "";
+    const name = currentDub.displayName || currentDub.language_name || currentDub.lanName || currentDub.language || "";
+    if (currentDub.is_original || currentDub.original || /original/i.test(name)) return "Original";
     if (/hindi/i.test(name)) return "Hindi";
-    if (currentDub.is_original || /original/i.test(name)) return "Original";
-    return name.replace(/dub/i, "").trim() || "Audio";
+    return name.replace(/\bdub\b/gi, "").trim() || "Audio";
   }, [currentDub]);
 
   const allIds = useMemo(() => {
@@ -201,7 +207,9 @@ export default function CustomVideoPlayer({
     if (dubs) {
       dubs.forEach((d: any) => {
         if (d.subject_id) ids.add(String(d.subject_id));
+        if (d.subjectId) ids.add(String(d.subjectId));
         if (d.detail_path) ids.add(String(d.detail_path));
+        if (d.detailPath) ids.add(String(d.detailPath));
       });
     }
     return ids;
@@ -298,7 +306,13 @@ export default function CustomVideoPlayer({
 
     setVideoUrl(newLink);
     setVideoError(false);
-  }, [selectedFile]);
+    setIsLoading(true);
+
+    if (videoRef.current) {
+      videoRef.current.load();
+      videoRef.current.play().catch(() => {});
+    }
+  }, [selectedFile, id]);
 
   // Handle Video Metadata Loaded & Autoplay
   const handleLoadedMetadata = () => {
@@ -306,6 +320,26 @@ export default function CustomVideoPlayer({
     const dur = videoRef.current.duration;
     setDuration(dur);
     setIsLoading(false);
+
+    // Switch native audio track if supported (Safari / macOS / iOS / multi-track media)
+    try {
+      const mediaEl = videoRef.current as any;
+      if (mediaEl && mediaEl.audioTracks && mediaEl.audioTracks.length > 0) {
+        const langCode = (currentDub?.language_code || currentDub?.lanCode || "").toLowerCase();
+        const langName = (currentDub?.displayName || currentDub?.language_name || currentDub?.lanName || "").toLowerCase();
+        for (let i = 0; i < mediaEl.audioTracks.length; i++) {
+          const track = mediaEl.audioTracks[i];
+          const tLang = (track.language || "").toLowerCase();
+          const tLabel = (track.label || "").toLowerCase();
+          const matches =
+            (langCode && (tLang.includes(langCode) || tLabel.includes(langCode))) ||
+            (langName && (tLabel.includes(langName) || tLang.includes(langName)));
+          track.enabled = Boolean(matches);
+        }
+      }
+    } catch {
+      // AudioTrackList may be read-only in some environments
+    }
 
     if (pendingTimestampRef.current && pendingTimestampRef.current > 0) {
       videoRef.current.currentTime = pendingTimestampRef.current;
@@ -669,11 +703,24 @@ export default function CustomVideoPlayer({
   }, [isPlaying, duration, onNextEpisode, mediaType, resetControlsTimeout]);
 
   const handleSelectDub = (dub: any) => {
-    const targetId = String(dub.subject_id || dub.detail_path || "");
-    if (!targetId || targetId === String(id)) {
+    const targetId = String(
+      dub.detail_path ||
+      dub.detailPath ||
+      dub.subject_id ||
+      dub.subjectId ||
+      ""
+    );
+    const cleanCurrentId = String(id || "");
+    const isCurrent = matchesDubId(dub, cleanCurrentId);
+
+    if (!targetId || isCurrent) {
       setShowAudioDrawer(false);
       setShowSettings(false);
       return;
+    }
+
+    if (videoRef.current && videoRef.current.currentTime > 0) {
+      pendingTimestampRef.current = videoRef.current.currentTime;
     }
 
     if (onDubChange) {
@@ -714,6 +761,7 @@ export default function CustomVideoPlayer({
     >
       {videoUrl ? (
         <video
+          key={id}
           ref={videoRef}
           src={videoUrl}
           autoPlay
@@ -805,7 +853,7 @@ export default function CustomVideoPlayer({
             )}
             {currentDubName && (
               <span className={`${styles.headerPill} ${styles.headerPillRed}`}>
-                {currentDubName} Dub
+                {currentDubName === "Original" ? "Original Audio" : `${currentDubName} Dub`}
               </span>
             )}
           </div>
@@ -1063,20 +1111,24 @@ export default function CustomVideoPlayer({
                         </button>
                         <div className={styles.menuList}>
                           {sortedDubs.map((dub: any, idx: number) => {
-                            const dubId = String(dub.subject_id || dub.detail_path || idx);
-                            const isActive =
-                              dubId === String(id) ||
-                              String(dub.detail_path) === String(id);
+                            const dubId = String(dub.detail_path || dub.detailPath || dub.subject_id || dub.subjectId || idx);
+                            const isActive = currentDub ? matchesDubId(dub, String(currentDub.detail_path || currentDub.subject_id || "")) : false;
+
+                            const rawName = dub.displayName || dub.language_name || dub.lanName || dub.language || "Audio";
+                            const isHindi = /hindi/i.test(rawName);
+                            const isOrig = dub.is_original || dub.original || /original/i.test(rawName);
+                            let displayName = rawName;
+                            if (isHindi) displayName = "Hindi Dub";
+                            else if (isOrig) displayName = "Original Audio";
+                            else if (!/dub/i.test(displayName)) displayName = `${displayName} Dub`;
+
                             return (
                               <button
                                 key={dubId}
                                 onClick={() => handleSelectDub(dub)}
                                 className={`${styles.menuItem} ${isActive ? styles.activeItem : ""}`}
                               >
-                                <span>
-                                  {dub.language_name || dub.language || "Audio"}
-                                  {dub.is_original ? " (Original)" : ""}
-                                </span>
+                                <span>{displayName}</span>
                                 {isActive && <Check size={16} />}
                               </button>
                             );
@@ -1232,12 +1284,16 @@ export default function CustomVideoPlayer({
 
           <div className={styles.drawerList}>
             {filteredDubs.map((dub: any, idx: number) => {
-              const dubId = String(dub.subject_id || dub.detail_path || idx);
-              const isActive =
-                dubId === String(id) || String(dub.detail_path) === String(id);
-              const name = dub.language_name || dub.language || "Audio";
-              const isHindi = /hindi/i.test(name);
-              const isOrig = dub.is_original || /original/i.test(name);
+              const dubId = String(dub.detail_path || dub.detailPath || dub.subject_id || dub.subjectId || idx);
+              const isActive = currentDub ? matchesDubId(dub, String(currentDub.detail_path || currentDub.subject_id || "")) : false;
+
+              const rawName = dub.displayName || dub.language_name || dub.lanName || dub.language || "Audio";
+              const isHindi = /hindi/i.test(rawName);
+              const isOrig = dub.is_original || dub.original || /original/i.test(rawName);
+              let displayName = rawName;
+              if (isHindi) displayName = "Hindi";
+              else if (isOrig) displayName = "Original";
+              else displayName = rawName.replace(/\bdub\b/gi, "").trim() || rawName;
 
               return (
                 <button
@@ -1246,7 +1302,7 @@ export default function CustomVideoPlayer({
                   className={`${styles.audioDubItem} ${isActive ? styles.audioDubItemActive : ""}`}
                 >
                   <div className={styles.audioDubLeft}>
-                    <span className={styles.audioDubName}>{name}</span>
+                    <span className={styles.audioDubName}>{displayName} {isOrig ? "Audio" : "Dub"}</span>
                     {isHindi && (
                       <span className={styles.dubLangBadge} style={{ fontSize: "0.7rem" }}>
                         Hindi

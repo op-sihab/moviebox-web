@@ -28,6 +28,7 @@ import {
   fetchSeasonEpisodes,
   prefetchDownload,
   prefetchDetails,
+  matchesDubId,
 } from "@/services/contentCache";
 import { getSeasonEpisodes } from "@/services/tmdb";
 import { buildSeasonMapping } from "@/services/seasonMapper";
@@ -219,33 +220,6 @@ export default function TVClient({ id }: TVClientProps) {
         setDubs(data.dubs || []);
         setSeasonsData(data.seasons);
 
-        // Default audio dub selection on initial visit: prefer Hindi, fallback to Original Audio
-        if (!userSelectedDub.current) {
-          const hindiDub = (data.dubs || []).find((d: any) =>
-            /hindi/i.test(d.language_name || d.language || "")
-          );
-          const originalDub = (data.dubs || []).find(
-            (d: any) => d.is_original || /original/i.test(d.language_name || d.language || "")
-          );
-          const targetDub = hindiDub || originalDub;
-
-          const isCurrentTarget = Boolean(
-            targetDub && (
-              String(targetDub.subject_id) === String(activeId) ||
-              String(targetDub.detail_path) === String(activeId)
-            )
-          );
-
-          if (targetDub && !isCurrentTarget && (targetDub.subject_id || targetDub.detail_path)) {
-            const targetId = String(targetDub.subject_id || targetDub.detail_path);
-            if (targetId && targetId !== String(activeId)) {
-              userSelectedDub.current = true;
-              window.history.replaceState(null, "", `/tv/${targetId}`);
-              setActiveId(targetId);
-              return;
-            }
-          }
-        }
         if (data.episodes) setRawApiEpisodes(data.episodes);
         if (data.backdropUrl) setTmdbBackdropUrl(data.backdropUrl);
         if (data.logoUrl) {
@@ -547,18 +521,22 @@ export default function TVClient({ id }: TVClientProps) {
                     return (
                       <>
                         {itemsToShow.map((d: any, di: number) => {
-                          const targetId = String(d.subject_id || d.detail_path || "");
-                          const isCurrent = Boolean(
-                            (d.subject_id && String(d.subject_id) === String(activeId)) ||
-                            (d.detail_path && String(d.detail_path) === String(activeId)) ||
-                            (movie?.subjectId && String(d.subject_id) === String(movie.subjectId)) ||
-                            (movie?.detailPath && String(d.detail_path) === String(movie.detailPath))
+                          const targetId = String(
+                            d.detail_path || d.detailPath || d.subject_id || d.subjectId || ""
                           );
+                          const cleanActiveId = String(activeId || "");
+                          const isCurrent = matchesDubId(d, cleanActiveId);
+                          const rawName = d.displayName || d.language_name || d.lanName || d.language || "Audio";
+                          const label = /hindi/i.test(rawName)
+                            ? "Hindi Dub"
+                            : (d.is_original || d.original || /original/i.test(rawName))
+                            ? "Original Audio"
+                            : rawName;
                           return (
                             <button
-                              key={d.subject_id ?? d.detail_path ?? d.language ?? `dub-${di}`}
+                              key={d.subject_id ?? d.subjectId ?? d.detail_path ?? d.detailPath ?? `dub-${di}`}
                               onClick={() => {
-                                if (targetId && targetId !== String(activeId)) {
+                                if (targetId && targetId !== cleanActiveId) {
                                   userSelectedDub.current = true;
                                   window.history.replaceState(null, "", `/tv/${targetId}`);
                                   setActiveId(targetId);
@@ -572,7 +550,7 @@ export default function TVClient({ id }: TVClientProps) {
                               }}
                               className={`${styles.dubBadge} ${isCurrent ? styles.dubActive : ""}`}
                             >
-                              {d.language_name}
+                              {label}
                             </button>
                           );
                         })}

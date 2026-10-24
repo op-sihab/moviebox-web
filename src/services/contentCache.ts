@@ -110,7 +110,7 @@ const pendingRecs: Record<string, Promise<any[]>> = {};
 // storage cannot grow without bound. Older mbx:core:<id> entries are simply
 // never read again.
 
-const CORE_STORAGE_PREFIX = "mbx:core:v2:";
+const CORE_STORAGE_PREFIX = "mbx:core:v3:";
 const CORE_STORAGE_INDEX_KEY = `${CORE_STORAGE_PREFIX}__index`;
 const CORE_STORAGE_MAX = 30;
 
@@ -178,6 +178,27 @@ function buildDownloadEndpoint(id: string, season = 0, episode = 0, type: "movie
   if (!path.startsWith("/")) path = `/${path}`;
   const sep = path.includes("?") ? "&" : "?";
   return `${BASE_URL}${path}${sep}season=${season}&episode=${episode}`;
+}
+
+export function extractSlugHash(id: string): string {
+  if (!id) return "";
+  const clean = String(id).split("?")[0].trim();
+  if (/^\d+$/.test(clean)) return clean;
+  const parts = clean.split("-");
+  return parts[parts.length - 1] || clean;
+}
+
+export function matchesDubId(dub: any, currentId: string): boolean {
+  if (!dub || !currentId) return false;
+  const clean = String(currentId).split("?")[0].trim();
+  const dPath = String(dub.detail_path || dub.detailPath || "").trim();
+  const dSub = String(dub.subject_id || dub.subjectId || "").trim();
+  if (clean === dPath || clean === dSub) return true;
+  const currentHash = extractSlugHash(clean);
+  const pathHash = extractSlugHash(dPath);
+  if (currentHash && pathHash && currentHash === pathHash) return true;
+  if (currentHash && dSub && currentHash === dSub) return true;
+  return false;
 }
 
 // ---------- synchronous cache getters ----------
@@ -257,12 +278,53 @@ export function fetchCore(id: string, type: "movie" | "tv" = "movie"): Promise<C
         accessStrategy: json?.data?.accessStrategy,
       };
 
+      const rawDubs =
+        (Array.isArray(json?.dubs) && json.dubs.length > 0 ? json.dubs : null) ||
+        (Array.isArray(json?.data?.subject?.dubs) && json.data.subject.dubs.length > 0 ? json.data.subject.dubs : null) ||
+        (Array.isArray(json?.subject?.dubs) && json.subject.dubs.length > 0 ? json.subject.dubs : null) ||
+        (Array.isArray(json?.data?.dubs) && json.data.dubs.length > 0 ? json.data.dubs : null) ||
+        [];
+
+      const normalizedDubs = rawDubs.map((d: any) => {
+        const subjectId = String(d.subjectId || d.subject_id || "");
+        const detailPath = String(d.detailPath || d.detail_path || "");
+        const rawName = d.lanName || d.language_name || d.language || "Audio";
+        const code = d.lanCode || d.language_code || "";
+        const isOriginal = Boolean(d.original || d.is_original || /original/i.test(rawName));
+        const isSub = d.type === 1 || /\bsub\b/i.test(rawName);
+        const isDub = d.type === 0 || (!d.type && !isSub);
+
+        let cleanName = rawName;
+        if (/hindi/i.test(rawName)) cleanName = "Hindi";
+        else if (isOriginal) cleanName = "Original Audio";
+        else cleanName = rawName.replace(/\bdub\b/gi, "").trim() || rawName;
+
+        return {
+          ...d,
+          subject_id: subjectId,
+          subjectId: subjectId,
+          detail_path: detailPath,
+          detailPath: detailPath,
+          language_name: rawName,
+          lanName: rawName,
+          language: cleanName,
+          displayName: cleanName,
+          language_code: code,
+          lanCode: code,
+          is_original: isOriginal,
+          original: isOriginal,
+          type: typeof d.type === "number" ? d.type : (isSub ? 1 : 0),
+          isSub,
+          isDub,
+        };
+      });
+
       const data: CoreDetails = {
         movie: subject,
         cast: castList,
         seasons: json?.seasons || null,
         episodes: Array.isArray(json?.episodes) ? json.episodes : undefined,
-        dubs: json?.dubs || [],
+        dubs: normalizedDubs,
         backdropUrl,
         logoUrl: logoW500Url || logoUrl,
         logoW500Url,

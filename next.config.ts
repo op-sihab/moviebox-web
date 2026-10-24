@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
-    optimizePackageImports: ["lucide-react", "nextjs-toploader"],
+    optimizePackageImports: ["lucide-react", "nextjs-toploader", "motion"],
   },
 };
 

@@ -115,7 +115,7 @@ export async function getImagesInfo(
 ): Promise<{ logoUrl: string | null; titledBackdropUrl: string | null }> {
   try {
     const url = `https://api.themoviedb.org/3/${type}/${tmdbId}/images?api_key=${TMDB_API_KEY}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { next: { revalidate: 3600 } });
     if (!res.ok) return { logoUrl: null, titledBackdropUrl: null };
 
     const data = await res.json();
@@ -161,7 +161,7 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
 
   try {
     const searchUrl = `https://api.themoviedb.org/3/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
-    const res = await fetch(searchUrl);
+    const res = await fetch(searchUrl, { next: { revalidate: 3600 } });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -179,10 +179,10 @@ export async function searchTVShow(title: string): Promise<TMDBShowMetadata | nu
     // Fetch images, show details (seasons), and credits concurrently
     const [imagesInfo, detailsData, creditsData] = await Promise.all([
       getImagesInfo(bestMatch.id, "tv"),
-      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}?api_key=${TMDB_API_KEY}`)
+      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}?api_key=${TMDB_API_KEY}`, { next: { revalidate: 3600 } })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
-      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`)
+      fetch(`https://api.themoviedb.org/3/tv/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`, { next: { revalidate: 3600 } })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     ]);
@@ -263,7 +263,7 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
 
   try {
     const searchUrl = `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`;
-    const res = await fetch(searchUrl);
+    const res = await fetch(searchUrl, { next: { revalidate: 3600 } });
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -280,7 +280,7 @@ export async function searchMovie(title: string): Promise<TMDBShowMetadata | nul
     // Fetch images and credits concurrently
     const [imagesInfo, creditsData] = await Promise.all([
       getImagesInfo(bestMatch.id, "movie"),
-      fetch(`https://api.themoviedb.org/3/movie/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`)
+      fetch(`https://api.themoviedb.org/3/movie/${bestMatch.id}/credits?api_key=${TMDB_API_KEY}`, { next: { revalidate: 3600 } })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null),
     ]);

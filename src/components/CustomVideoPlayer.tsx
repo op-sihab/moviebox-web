@@ -1,5 +1,19 @@
 "use client";
 
+function resolveStreamUrl(rawUrl: string | undefined): string {
+  if (!rawUrl) return "";
+  if (rawUrl.startsWith("/api/proxy") || rawUrl.includes("movie-api.opsihab.tech/api/proxy")) {
+    return rawUrl;
+  }
+  if (
+    rawUrl.includes("hakunaymatata.com") ||
+    rawUrl.includes("aoneroom.com")
+  ) {
+    return `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
+  }
+  return rawUrl;
+}
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import styles from "./CustomVideoPlayer.module.css";
@@ -324,21 +338,22 @@ export default function CustomVideoPlayer({
     }
   }, [id, season, episode, mediaType, title, allIds]);
 
-  // Video URL and source syncing
+  // Video URL and source syncing (auto-wraps referer-protected CDN streams with edge proxy)
   useEffect(() => {
-    const newLink = selectedFile?.stream_link;
-    if (!newLink) {
+    const rawLink = selectedFile?.stream_link;
+    if (!rawLink) {
       setVideoUrl("");
       return;
     }
 
-    if (newLink === videoUrl) return;
+    const resolved = resolveStreamUrl(rawLink);
+    if (resolved === videoUrl) return;
 
     if (videoRef.current && videoRef.current.currentTime > 0) {
       pendingTimestampRef.current = videoRef.current.currentTime;
     }
 
-    setVideoUrl(newLink);
+    setVideoUrl(resolved);
     setVideoError(false);
 
     // Only show full loading overlay on cold startup when there was no previous stream
@@ -842,7 +857,17 @@ export default function CustomVideoPlayer({
             setIsPlaying(true);
           }}
           onPause={() => setIsPlaying(false)}
-          onError={() => setVideoError(true)}
+          onError={() => {
+            // Dual-redundancy: If local edge proxy has any issue, auto-fallback to backend API streaming proxy
+            if (videoUrl.startsWith("/api/proxy?url=") && selectedFile?.stream_link) {
+              const fallbackUrl = `https://movie-api.opsihab.tech/api/proxy?url=${encodeURIComponent(selectedFile.stream_link)}`;
+              if (videoUrl !== fallbackUrl) {
+                setVideoUrl(fallbackUrl);
+                return;
+              }
+            }
+            setVideoError(true);
+          }}
         />
       ) : (
         <div className={styles.noSource}>Loading streaming source…</div>

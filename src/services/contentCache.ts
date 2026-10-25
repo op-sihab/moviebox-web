@@ -667,7 +667,10 @@ export function preloadMediaStream(url: string) {
     const v = document.createElement("video");
     v.preload = "auto";
     v.muted = true;
-    v.src = url;
+    const proxiedUrl = (url.includes("hakunaymatata.com") || url.includes("aoneroom.com"))
+      ? `/api/proxy?url=${encodeURIComponent(url)}`
+      : url;
+    v.src = proxiedUrl;
     const cleanUp = () => {
       v.src = "";
       v.remove();

@@ -173,7 +173,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     setSelectedFile(defaultFile);
   }, [files]);
 
-  // 2. Fetch stream links (seamlessly without clearing files when switching dubs)
+  // 2. Fetch stream links (seamlessly with preferred language prioritization)
   useEffect(() => {
     if (isSeries && !movie && seasonMapping.mappedSeasons.length === 0) return;
 
@@ -183,6 +183,8 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       : { mbxSeason: 0, mbxEpisode: 0 };
     const s = backendCoords.mbxSeason;
     const e = backendCoords.mbxEpisode;
+
+    const prefLang = typeof window !== "undefined" ? localStorage.getItem("cineaura_pref_lang") || "" : "";
 
     const cached = getCachedDownload(activeId, s, e);
     if (cached && cached.length > 0) {
@@ -195,7 +197,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       setLoadingFiles(true);
     }
 
-    fetchDownload(activeId, s, e, isSeries ? "tv" : "movie")
+    fetchDownload(activeId, s, e, isSeries ? "tv" : "movie", prefLang)
       .then((f) => {
         if (active && f && f.length > 0) {
           setFiles(f);
@@ -231,13 +233,14 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return null;
   }, [isSeries, seasonMapping, currentSeason, currentEpisode]);
 
-  // Prefetch next episode gently only AFTER current video has loaded
+  // Prefetch next episode rapidly in background once current stream link is active
   useEffect(() => {
     if (isSeries && nextEp && files.length > 0) {
       const timer = setTimeout(() => {
         const backend = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
-        fetchDownload(activeId, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
-      }, 3000);
+        const prefLang = typeof window !== "undefined" ? localStorage.getItem("cineaura_pref_lang") || "" : "";
+        fetchDownload(activeId, backend.mbxSeason, backend.mbxEpisode, "tv", prefLang).catch(() => {});
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [isSeries, nextEp, activeId, seasonMapping, files.length]);

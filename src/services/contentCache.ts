@@ -163,13 +163,14 @@ function buildDetailEndpoint(id: string, type: "movie" | "tv" = "movie"): string
   return `${BASE_URL}/details/${encodeURIComponent(id)}`;
 }
 
-function buildDownloadEndpoint(id: string, season = 0, episode = 0, type: "movie" | "tv" = "movie"): string {
+function buildDownloadEndpoint(id: string, season = 0, episode = 0, type: "movie" | "tv" = "movie", dub = ""): string {
   let path = id;
+  const dubQuery = dub ? `&dub=${encodeURIComponent(dub)}` : "";
   // TMDB IDs are numeric with <= 7 digits
   if (/^\d{1,7}$/.test(path)) {
     const s = season > 0 ? `&season=${season}` : "";
     const e = episode > 0 ? `&episode=${episode}` : "";
-    return `${BASE_URL}/download/tmdb/${path}?type=${type}${s}${e}`;
+    return `${BASE_URL}/download/tmdb/${path}?type=${type}${s}${e}${dubQuery}`;
   }
   if (path.startsWith("/details/")) path = path.replace("/details/", "/download/");
   else if (path.startsWith("details/")) path = path.replace("details/", "download/");
@@ -177,7 +178,7 @@ function buildDownloadEndpoint(id: string, season = 0, episode = 0, type: "movie
   else if (!path.startsWith("/download/") && !path.startsWith("download/")) path = `/download/${encodeURIComponent(path)}`;
   if (!path.startsWith("/")) path = `/${path}`;
   const sep = path.includes("?") ? "&" : "?";
-  return `${BASE_URL}${path}${sep}season=${season}&episode=${episode}`;
+  return `${BASE_URL}${path}${sep}season=${season}&episode=${episode}${dubQuery}`;
 }
 
 export function extractSlugHash(id: string): string {
@@ -575,14 +576,14 @@ export function getCachedSubtitles(id: string, season: number, episode: number):
   return subtitlesCache.get(downloadKey(id, season, episode)) ?? null;
 }
 
-export function fetchDownload(id: string, season: number, episode: number, type: "movie" | "tv" = "movie"): Promise<any[]> {
-  const key = downloadKey(id, season, episode);
-  const cached = downloadCache.get(key);
+export function fetchDownload(id: string, season: number, episode: number, type: "movie" | "tv" = "movie", dub = ""): Promise<any[]> {
+  const key = dub ? `${downloadKey(id, season, episode)}:${dub.toLowerCase()}` : downloadKey(id, season, episode);
+  const cached = downloadCache.get(key) || (dub ? downloadCache.get(downloadKey(id, season, episode)) : undefined);
   if (cached) return Promise.resolve(cached);
 
   if (!pendingDownloads[key]) {
     pendingDownloads[key] = (async () => {
-      const res = await fetch(buildDownloadEndpoint(id, season, episode, type));
+      const res = await fetch(buildDownloadEndpoint(id, season, episode, type, dub));
       if (!res.ok) throw new Error("Failed to fetch download links");
       const json = await res.json();
       let rawFiles = json?.files || [];
@@ -607,7 +608,7 @@ export function fetchDownload(id: string, season: number, episode: number, type:
 
           if (cumulative > 0) {
             const absEp = cumulative + episode;
-            const res2 = await fetch(buildDownloadEndpoint(id, 1, absEp, "tv"));
+            const res2 = await fetch(buildDownloadEndpoint(id, 1, absEp, "tv", dub));
             if (res2.ok) {
               const json2 = await res2.json();
               const rawFiles2 = json2?.files || [];
@@ -628,6 +629,7 @@ export function fetchDownload(id: string, season: number, episode: number, type:
       }
       
       downloadCache.set(key, files);
+      downloadCache.set(downloadKey(id, season, episode), files);
       if (rawSubs.length > 0) {
         subtitlesCache.set(key, rawSubs);
       }
@@ -667,8 +669,9 @@ export function preloadMediaStream(url: string) {
     const v = document.createElement("video");
     v.preload = "auto";
     v.muted = true;
-    const proxiedUrl = (url.includes("hakunaymatata.com") || url.includes("aoneroom.com"))
-      ? `/api/proxy?url=${encodeURIComponent(url)}`
+    const proxyBase = process.env.NEXT_PUBLIC_STREAM_PROXY;
+    const proxiedUrl = proxyBase && (url.includes("hakunaymatata.com") || url.includes("aoneroom.com"))
+      ? `${proxyBase}${encodeURIComponent(url)}`
       : url;
     v.src = proxiedUrl;
     const cleanUp = () => {

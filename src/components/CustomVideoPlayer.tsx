@@ -2,14 +2,9 @@
 
 function resolveStreamUrl(rawUrl: string | undefined): string {
   if (!rawUrl) return "";
-  if (rawUrl.startsWith("/api/proxy") || rawUrl.includes("movie-api.opsihab.tech/api/proxy")) {
-    return rawUrl;
-  }
-  if (
-    rawUrl.includes("hakunaymatata.com") ||
-    rawUrl.includes("aoneroom.com")
-  ) {
-    return `/api/proxy?url=${encodeURIComponent(rawUrl)}`;
+  const proxyBase = process.env.NEXT_PUBLIC_STREAM_PROXY;
+  if (proxyBase && (rawUrl.includes("hakunaymatata.com") || rawUrl.includes("aoneroom.com"))) {
+    return `${proxyBase}${encodeURIComponent(rawUrl)}`;
   }
   return rawUrl;
 }
@@ -567,11 +562,23 @@ export default function CustomVideoPlayer({
 
   const skip = (seconds: number) => {
     if (!videoRef.current) return;
-    const dur = videoRef.current.duration || duration || 0;
-    const cur = videoRef.current.currentTime || 0;
-    const target = dur > 0 ? Math.max(0, Math.min(dur, cur + seconds)) : Math.max(0, cur + seconds);
-    videoRef.current.currentTime = target;
-    setCurrentTime(target);
+    const dur = Number.isFinite(videoRef.current.duration) && videoRef.current.duration > 0
+      ? videoRef.current.duration
+      : (Number.isFinite(duration) && duration > 0 ? duration : 0);
+    const cur = Number.isFinite(videoRef.current.currentTime) ? videoRef.current.currentTime : 0;
+    let target = cur + seconds;
+    if (dur > 0) {
+      target = Math.max(0, Math.min(dur, target));
+    } else {
+      target = Math.max(0, target);
+    }
+    if (!Number.isFinite(target)) return;
+    try {
+      videoRef.current.currentTime = target;
+      setCurrentTime(target);
+    } catch (e) {
+      console.warn("Seek error:", e);
+    }
     resetControlsTimeout();
   };
 
@@ -603,15 +610,21 @@ export default function CustomVideoPlayer({
   const updateScrubTime = useCallback(
     (clientX: number) => {
       if (!timelineRef.current || !videoRef.current) return;
-      const dur = videoRef.current.duration || duration || 0;
+      const dur = Number.isFinite(videoRef.current.duration) && videoRef.current.duration > 0
+        ? videoRef.current.duration
+        : (Number.isFinite(duration) && duration > 0 ? duration : 0);
       if (!dur || dur <= 0) return;
       const rect = timelineRef.current.getBoundingClientRect();
+      if (!rect.width) return;
       const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
       const target = pos * dur;
-      videoRef.current.currentTime = target;
-      setCurrentTime(target);
-      setHoverPos(clientX - rect.left);
-      setHoverTime(target);
+      if (!Number.isFinite(target)) return;
+      try {
+        videoRef.current.currentTime = target;
+        setCurrentTime(target);
+        setHoverPos(clientX - rect.left);
+        setHoverTime(target);
+      } catch (e) {}
     },
     [duration]
   );
@@ -859,14 +872,6 @@ export default function CustomVideoPlayer({
           }}
           onPause={() => setIsPlaying(false)}
           onError={() => {
-            // Dual-redundancy: If local edge proxy has any issue, auto-fallback to backend API streaming proxy
-            if (videoUrl.startsWith("/api/proxy?url=") && selectedFile?.stream_link) {
-              const fallbackUrl = `https://movie-api.opsihab.tech/api/proxy?url=${encodeURIComponent(selectedFile.stream_link)}`;
-              if (videoUrl !== fallbackUrl) {
-                setVideoUrl(fallbackUrl);
-                return;
-              }
-            }
             setVideoError(true);
           }}
         />

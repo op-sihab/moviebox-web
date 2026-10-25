@@ -698,13 +698,19 @@ export function prefetchAllDubs(
   episode: number,
   type: "movie" | "tv" = "movie"
 ) {
+  // Let the backend handle pre-warming server-side without flooding the browser network pipe.
+  // At most prefetch only 1 alternate popular dub if needed, using a relaxed timeout.
   if (!Array.isArray(dubs) || dubs.length <= 1) return;
-  dubs.forEach((d: any) => {
-    const dubId = String(d.detail_path || d.detailPath || d.subject_id || d.subjectId || "");
-    if (dubId) {
+  const firstAlt = dubs.find((d: any) => {
+    const name = String(d.displayName || d.language || "").toLowerCase();
+    return name.includes("hindi") || name.includes("english");
+  }) || dubs[0];
+  const dubId = String(firstAlt?.detail_path || firstAlt?.detailPath || firstAlt?.subject_id || firstAlt?.subjectId || "");
+  if (dubId && typeof window !== "undefined") {
+    setTimeout(() => {
       prefetchDownload(dubId, season, episode, type);
-    }
-  });
+    }, 2500);
+  }
 }
 
 /**

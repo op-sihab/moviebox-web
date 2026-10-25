@@ -209,24 +209,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return () => {
       active = false;
     };
-  }, [currentSeason, currentEpisode, activeId, isSeries, movie, seasonMapping]);
-
-  // 3. Parallel pre-warming of all available language dubs
-  // Preloads all audio dub streams in parallel so switching between languages happens instantly in 0ms
-  useEffect(() => {
-    if (!dubs || dubs.length <= 1) return;
-
-    const backendCoords = isSeries
-      ? seasonMapping.mapUiToBackend(currentSeason, currentEpisode)
-      : { mbxSeason: 0, mbxEpisode: 0 };
-    const s = backendCoords.mbxSeason;
-    const e = backendCoords.mbxEpisode;
-    const type = isSeries ? "tv" : "movie";
-
-    prefetchAllDubs(dubs, s, e, type);
-  }, [dubs, currentSeason, currentEpisode, isSeries, seasonMapping]);
-
-  // Determine next episode
+  }, [currentSeason, currentEpisode, activeId, isSeries, movie, seasonMapping]);  // Determine next episode
   const nextEp = useMemo(() => {
     if (!isSeries || !seasonMapping.mappedSeasons.length) return null;
 
@@ -248,13 +231,16 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     return null;
   }, [isSeries, seasonMapping, currentSeason, currentEpisode]);
 
-  // Prefetch next episode
+  // Prefetch next episode gently only AFTER current video has loaded
   useEffect(() => {
-    if (isSeries && nextEp) {
-      const backend = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
-      fetchDownload(activeId, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
+    if (isSeries && nextEp && files.length > 0) {
+      const timer = setTimeout(() => {
+        const backend = seasonMapping.mapUiToBackend(nextEp.season, nextEp.episode);
+        fetchDownload(activeId, backend.mbxSeason, backend.mbxEpisode).catch(() => {});
+      }, 3000);
+      return () => clearTimeout(timer);
     }
-  }, [isSeries, nextEp, activeId, seasonMapping]);
+  }, [isSeries, nextEp, activeId, seasonMapping, files.length]);
 
   // Load episode metadata
   useEffect(() => {

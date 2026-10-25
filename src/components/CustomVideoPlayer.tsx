@@ -567,10 +567,11 @@ export default function CustomVideoPlayer({
 
   const skip = (seconds: number) => {
     if (!videoRef.current) return;
-    videoRef.current.currentTime = Math.max(
-      0,
-      Math.min(duration, videoRef.current.currentTime + seconds)
-    );
+    const dur = videoRef.current.duration || duration || 0;
+    const cur = videoRef.current.currentTime || 0;
+    const target = dur > 0 ? Math.max(0, Math.min(dur, cur + seconds)) : Math.max(0, cur + seconds);
+    videoRef.current.currentTime = target;
+    setCurrentTime(target);
     resetControlsTimeout();
   };
 
@@ -601,19 +602,16 @@ export default function CustomVideoPlayer({
   // Timeline Dragging & Scrubbing
   const updateScrubTime = useCallback(
     (clientX: number) => {
-      if (!timelineRef.current || !videoRef.current || duration <= 0) return;
+      if (!timelineRef.current || !videoRef.current) return;
+      const dur = videoRef.current.duration || duration || 0;
+      if (!dur || dur <= 0) return;
       const rect = timelineRef.current.getBoundingClientRect();
       const pos = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-      const target = pos * duration;
+      const target = pos * dur;
       videoRef.current.currentTime = target;
       setCurrentTime(target);
       setHoverPos(clientX - rect.left);
       setHoverTime(target);
-      if (previewVideoRef.current && Number.isFinite(target)) {
-        try {
-          previewVideoRef.current.currentTime = target;
-        } catch {}
-      }
     },
     [duration]
   );
@@ -632,7 +630,8 @@ export default function CustomVideoPlayer({
       setIsDraggingTimeline(false);
       updateScrubTime(upEvent.clientX);
       if (videoRef.current) {
-        saveProgress(videoRef.current.currentTime, duration);
+        const dur = videoRef.current.duration || duration || 0;
+        saveProgress(videoRef.current.currentTime, dur);
       }
       window.removeEventListener("mousemove", handleMouseMoveWindow);
       window.removeEventListener("mouseup", handleMouseUpWindow);
@@ -643,13 +642,15 @@ export default function CustomVideoPlayer({
   };
 
   const handleTimelineMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!timelineRef.current || duration <= 0) return;
+    if (!timelineRef.current) return;
+    const dur = videoRef.current?.duration || duration || 0;
+    if (!dur || dur <= 0) return;
     const rect = timelineRef.current.getBoundingClientRect();
     const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const target = pos * duration;
+    const target = pos * dur;
     setHoverPos(e.clientX - rect.left);
     setHoverTime(target);
-    if (previewVideoRef.current && Number.isFinite(target)) {
+    if (!isDraggingTimeline && previewVideoRef.current && Number.isFinite(target)) {
       try {
         previewVideoRef.current.currentTime = target;
       } catch {}

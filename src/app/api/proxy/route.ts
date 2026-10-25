@@ -28,21 +28,51 @@ export async function GET(request: NextRequest) {
     forwardRange = `bytes=0-${CHUNK_SIZE - 1}`;
   }
 
-  const headers: Record<string, string> = {
+  const baseHeaders: Record<string, string> = {
     "User-Agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     Referer: "https://moviebox.ph/",
+    Origin: "https://moviebox.ph",
     Accept: "*/*",
   };
   if (forwardRange) {
-    headers["Range"] = forwardRange;
+    baseHeaders["Range"] = forwardRange;
   }
 
   try {
-    const upstreamRes = await fetch(url, { headers });
+    let upstreamRes = await fetch(url, { headers: baseHeaders });
 
+    // Fallback: If rejected with 426 / 430 / 429, retry with clean curl UA + BD residential spoof IP
     if (!upstreamRes.ok && upstreamRes.status !== 206) {
-      return new NextResponse(`Upstream error: ${upstreamRes.statusText}`, { status: upstreamRes.status });
+      const fallbackHeaders: Record<string, string> = {
+        "User-Agent": "curl/8.21.0",
+        Referer: "https://moviebox.ph/",
+        Accept: "*/*",
+        "X-Forwarded-For": "103.191.240.1",
+        "X-Real-IP": "103.191.240.1",
+        "Client-IP": "103.191.240.1",
+      };
+      if (forwardRange) {
+        fallbackHeaders["Range"] = forwardRange;
+      }
+      const retryRes = await fetch(url, { headers: fallbackHeaders });
+      if (retryRes.ok || retryRes.status === 206) {
+        upstreamRes = retryRes;
+      } else {
+        const errText = await upstreamRes.text().catch(() => "");
+        const retryErrText = await retryRes.text().catch(() => "");
+        return new NextResponse(
+          JSON.stringify({
+            error: "Upstream error",
+            attempt1: { status: upstreamRes.status, body: errText, headers: Object.fromEntries(upstreamRes.headers.entries()) },
+            attempt2: { status: retryRes.status, body: retryErrText, headers: Object.fromEntries(retryRes.headers.entries()) }
+          }),
+          {
+            status: upstreamRes.status,
+            headers: { "Content-Type": "application/json" }
+          }
+        );
+      }
     }
 
     const arrayBuffer = await upstreamRes.arrayBuffer();

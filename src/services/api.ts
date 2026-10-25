@@ -99,8 +99,11 @@ export function mapSubject(s: any) {
   const isTv =
     s.media_type === "tv" ||
     s.subjectType === 2 ||
+    s.subjectType === 7 ||
     s.subject_type === "TV_SERIES" ||
     s.subject_type === 2 ||
+    s.subject_type === 7 ||
+    Boolean(s.season && s.season > 0) ||
     (s.total_seasons && s.total_seasons > 0);
 
   // Clean single-segment ID so Next.js dynamic routes /movie/[id] and /tv/[id] never 404

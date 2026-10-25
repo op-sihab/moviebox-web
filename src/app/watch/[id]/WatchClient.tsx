@@ -68,6 +68,26 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     setCurrentEpisode(initialEpisode);
   }, [initialSeason, initialEpisode]);
 
+  // Auto-select user's saved audio language preference (e.g. Hindi)
+  useEffect(() => {
+    const savedLang = typeof window !== "undefined" ? localStorage.getItem("cineaura_pref_lang") : null;
+    if (savedLang && dubs && dubs.length > 0 && !userSelectedDub.current) {
+      const match = dubs.find((d: any) => {
+        const dName = (d.displayName || d.language_name || d.lanName || d.language || "").toLowerCase();
+        const dCode = (d.language_code || d.lanCode || "").toLowerCase();
+        const target = savedLang.toLowerCase();
+        return dName.includes(target) || dCode === target;
+      });
+      if (match) {
+        const targetId = String(match.detail_path || match.detailPath || match.subject_id || match.subjectId || "");
+        if (targetId && targetId !== activeId) {
+          userSelectedDub.current = true;
+          setActiveId(targetId);
+        }
+      }
+    }
+  }, [dubs, activeId]);
+
   const seasonMapping = useMemo(() => {
     return buildSeasonMapping(seasonsData, tmdbMeta?.seasons);
   }, [seasonsData, tmdbMeta?.seasons]);
@@ -330,7 +350,9 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
   const handleEpisodeChange = (season: number, episode: number) => {
     setCurrentSeason(season);
     setCurrentEpisode(episode);
-    router.push(`${pathname}?season=${season}&episode=${episode}`, { scroll: false });
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `/watch/${activeId}?season=${season}&episode=${episode}`);
+    }
   };
 
   const handleNextEpisode = () => {
@@ -355,6 +377,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
 
     userSelectedDub.current = true;
     setActiveId(targetId);
+
+    try {
+      const langName = targetDub.displayName || targetDub.language_name || targetDub.lanName || targetDub.language || "";
+      if (langName) {
+        localStorage.setItem("cineaura_pref_lang", langName.toLowerCase());
+      }
+    } catch {}
 
     const query = isSeries ? `?season=${currentSeason}&episode=${currentEpisode}` : "";
     if (typeof window !== "undefined") {

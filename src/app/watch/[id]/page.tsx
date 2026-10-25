@@ -30,7 +30,7 @@ export default async function WatchPage({ params, searchParams }: PageProps) {
   // details page) so the player appears instantly with no blocking server calls.
   return (
     <WatchClient
-      key={`${id}-${initialSeason}-${initialEpisode}`}
+      key={id}
       id={id}
       initialSeason={initialSeason}
       initialEpisode={initialEpisode}

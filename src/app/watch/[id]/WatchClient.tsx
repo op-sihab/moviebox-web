@@ -141,12 +141,13 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
     if (playable.length === 0) {
       return;
     }
-    const currentRes = selectedFile?.resolution;
+    const savedRes = typeof window !== "undefined" ? localStorage.getItem("mbx_pref_res") : null;
+    const currentRes = selectedFile?.resolution || savedRes;
     const matchedFile = currentRes ? playable.find((f: any) => f.resolution === currentRes) : null;
     const defaultFile =
       matchedFile ||
-      playable.find((f: any) => f.resolution === "1080p") ||
       playable.find((f: any) => f.resolution === "720p") ||
+      playable.find((f: any) => f.resolution === "1080p") ||
       playable.find((f: any) => f.resolution === "480p") ||
       playable[0];
     setSelectedFile(defaultFile);
@@ -154,7 +155,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
 
   // 2. Fetch stream links (seamlessly without clearing files when switching dubs)
   useEffect(() => {
-    if (!movie) return;
+    if (isSeries && !movie && seasonMapping.mappedSeasons.length === 0) return;
 
     let active = true;
     const backendCoords = isSeries
@@ -385,6 +386,15 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
       .catch(() => {});
   };
 
+  const handleQualityChange = (file: any) => {
+    setSelectedFile(file);
+    if (file?.resolution) {
+      try {
+        localStorage.setItem("mbx_pref_res", file.resolution);
+      } catch {}
+    }
+  };
+
   const backHref = `/${isSeries ? "tv" : "movie"}/${activeId}`;
   const playerTitle = movie?.title || "Now Playing";
   const episodeLabel = isSeries
@@ -411,7 +421,7 @@ export default function WatchClient({ id, initialSeason, initialEpisode }: Watch
           onEpisodeChange={handleEpisodeChange}
           files={files}
           selectedFile={selectedFile}
-          onQualityChange={setSelectedFile}
+          onQualityChange={handleQualityChange}
           title={playerTitle}
           episodeTitle={episodeLabel}
           nextEpisodeTitle={

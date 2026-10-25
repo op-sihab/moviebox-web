@@ -25,8 +25,8 @@ interface BrandIntroProps {
 export default function BrandIntro({
   ready,
   onFinish,
-  minDuration = 2000,
-  maxDuration = 6000,
+  minDuration = 700,
+  maxDuration = 3500,
   titleLogoUrl,
   contentTitle,
 }: BrandIntroProps) {

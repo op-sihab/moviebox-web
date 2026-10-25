@@ -971,7 +971,7 @@ export default function CustomVideoPlayer({
                     <video
                       ref={previewVideoRef}
                       src={videoUrl}
-                      preload="auto"
+                      preload="metadata"
                       muted
                       playsInline
                       className={styles.seekThumbnailVideo}
